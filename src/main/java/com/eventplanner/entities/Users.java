@@ -1,5 +1,6 @@
 package com.eventplanner.entities;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -12,15 +13,17 @@ import java.util.UUID;
 @AllArgsConstructor
 @NoArgsConstructor
 @Table(name = "users")
+@JsonIgnoreProperties({"hibernateLazyInitializer"})
 public class Users {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID userId;
 
+    private String username;
     private String firstname;
     private String lastname;
     private String password;
 
-    @Column(unique = true)
+    //@Column(unique = true)
     private String email;
 }

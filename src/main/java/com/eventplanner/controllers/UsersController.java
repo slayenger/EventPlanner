@@ -1,10 +1,11 @@
 package com.eventplanner.controllers;
 
+import com.eventplanner.dtos.RegistrationUserDTO;
 import com.eventplanner.dtos.UserDTO;
-import com.eventplanner.dtos.UsersRegistrationDTO;
 import com.eventplanner.services.api.UsersService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -17,13 +18,9 @@ public class UsersController
 
     public final UsersService usersService;
 
-    @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@RequestBody UsersRegistrationDTO user)
-    {
-        return usersService.registerUser(user);
-    }
 
-    @GetMapping("/users")
+
+    @GetMapping()
     public ResponseEntity<?> getAllUsers()
     {
         return usersService.getAllUsers();
@@ -36,12 +33,14 @@ public class UsersController
     }
 
     @PutMapping("/{userId}")
+    //@PreAuthorize("#userId.equals(authentication.principal.userId)")
     public ResponseEntity<?> updateUser(@PathVariable UUID userId, UserDTO userDTO)
     {
         return usersService.updateUser(userId, userDTO);
     }
 
     @DeleteMapping("/{userId}")
+    //@PreAuthorize("#userId == authentication.principal.userId")
     public ResponseEntity<?> deleteUser(@PathVariable UUID userId)
     {
         return usersService.deleteUser(userId);
