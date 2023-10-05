@@ -3,6 +3,7 @@ package com.eventplanner.services.impl;
 import com.eventplanner.dtos.*;
 import com.eventplanner.entities.Users;
 import com.eventplanner.security.jwt.JwtTokenUtils;
+import com.eventplanner.services.api.AuthService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
@@ -19,7 +20,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 @Service
 @RequiredArgsConstructor
 @Slf4j
-public class AuthServiceImpl {
+public class AuthServiceImpl implements AuthService {
 
     private final UsersServiceImpl usersService;
     private final JwtTokenUtils jwtTokenUtil;
