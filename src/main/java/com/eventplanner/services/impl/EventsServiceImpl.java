@@ -2,11 +2,15 @@ package com.eventplanner.services.impl;
 
 import com.eventplanner.dtos.CustomUserDetailsDTO;
 import com.eventplanner.dtos.EventsDTO;
+import com.eventplanner.dtos.ParticipantsRequestDTO;
 import com.eventplanner.entities.Events;
 import com.eventplanner.entities.Users;
+import com.eventplanner.repositories.EventInvitationsRepository;
+import com.eventplanner.repositories.EventParticipantsRepository;
 import com.eventplanner.repositories.EventsRepository;
 import com.eventplanner.repositories.UsersRepository;
 import com.eventplanner.services.api.EventsService;
+import com.eventplanner.services.api.ParticipantsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -24,6 +28,9 @@ public class EventsServiceImpl implements EventsService {
 
     private final EventsRepository eventsRepository;
     private final UsersRepository usersRepository;
+    private final ParticipantsService participantsService;
+    private final EventParticipantsRepository participantsRepository;
+    private final EventInvitationsRepository invitationsRepository;
 
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -31,7 +38,7 @@ public class EventsServiceImpl implements EventsService {
     {
         try
         {
-            if (authentication == null)
+            if (!authentication.isAuthenticated())
             {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
             }
@@ -51,8 +58,12 @@ public class EventsServiceImpl implements EventsService {
             Users organizer = usersRepository.getReferenceById(userDetails.getUserId());
             newEvent.setOrganizer(organizer);
 
-            eventsRepository.save(newEvent);
+            ParticipantsRequestDTO participantsRequestDTO = new ParticipantsRequestDTO();
 
+            eventsRepository.save(newEvent);
+            participantsRequestDTO.setEventId(newEvent.getEventId());
+            participantsRequestDTO.setUserId(organizer.getUserId());
+            participantsService.addParticipantToEvent(participantsRequestDTO);
             return ResponseEntity.ok(eventsDTO);
         }
         catch (Exception e)
@@ -128,11 +139,14 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
+    @Transactional(isolation = Isolation.READ_COMMITTED)
     public ResponseEntity<?> deleteEvent(UUID eventId)
     {
         if (eventsRepository.existsById(eventId))
         {
             eventsRepository.deleteById(eventId);
+            participantsRepository.deleteAllByEvent_EventId(eventId);
+            invitationsRepository.deleteAllByEvent_EventId(eventId);
             return ResponseEntity.ok().body("Event with id " + eventId + " has been deleted");
         }
         else

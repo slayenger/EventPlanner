@@ -5,6 +5,7 @@ import com.eventplanner.dtos.ParticipantsRequestDTO;
 import com.eventplanner.services.api.ParticipantsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.UUID;
@@ -39,6 +40,12 @@ public class ParticipantsController {
     public ResponseEntity<?> removeAllParticipantsFromEvent(@PathVariable UUID eventId)
     {
         return participantsService.removeAllParticipantsFromEvent(eventId);
+    }
+
+    @GetMapping("/generate_link")
+    public ResponseEntity<?> generateInvitationLink(@RequestBody ParticipantsRequestDTO requestDTO, Authentication authentication)
+    {
+        return participantsService.generateInvitationLink(requestDTO, authentication);
     }
 
 }
