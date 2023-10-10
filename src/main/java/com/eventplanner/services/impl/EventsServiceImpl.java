@@ -3,15 +3,14 @@ package com.eventplanner.services.impl;
 import com.eventplanner.dtos.CustomUserDetailsDTO;
 import com.eventplanner.dtos.EventsDTO;
 import com.eventplanner.dtos.ParticipantsRequestDTO;
+import com.eventplanner.entities.EventPhotos;
 import com.eventplanner.entities.Events;
 import com.eventplanner.entities.Users;
-import com.eventplanner.repositories.EventInvitationsRepository;
-import com.eventplanner.repositories.EventParticipantsRepository;
-import com.eventplanner.repositories.EventsRepository;
-import com.eventplanner.repositories.UsersRepository;
+import com.eventplanner.repositories.*;
 import com.eventplanner.services.api.EventsService;
 import com.eventplanner.services.api.ParticipantsService;
 import lombok.RequiredArgsConstructor;
+import org.apache.tomcat.util.http.fileupload.FileUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -19,6 +18,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,6 +32,8 @@ public class EventsServiceImpl implements EventsService {
     private final ParticipantsService participantsService;
     private final EventParticipantsRepository participantsRepository;
     private final EventInvitationsRepository invitationsRepository;
+    private final EventPhotosRepository photosRepository;
+    private static final String UPLOAD_DIR = "C:/Users/sinya/IdeaProjects/EventPlannerApp/src/main/resources/static/event_images";
 
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
@@ -38,10 +41,6 @@ public class EventsServiceImpl implements EventsService {
     {
         try
         {
-            if (!authentication.isAuthenticated())
-            {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Unauthorized");
-            }
             Events newEvent = new Events();
             newEvent.setTitle(eventsDTO.getTitle());
             newEvent.setDescription(eventsDTO.getDescription());
@@ -49,11 +48,6 @@ public class EventsServiceImpl implements EventsService {
             newEvent.setDateTime(eventsDTO.getDateTime());
 
             CustomUserDetailsDTO userDetails = (CustomUserDetailsDTO) authentication.getPrincipal();
-
-            if (userDetails == null)
-            {
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Organizer not found");
-            }
 
             Users organizer = usersRepository.getReferenceById(userDetails.getUserId());
             newEvent.setOrganizer(organizer);
@@ -140,19 +134,45 @@ public class EventsServiceImpl implements EventsService {
 
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public ResponseEntity<?> deleteEvent(UUID eventId)
+    public ResponseEntity<?> deleteEvent(UUID eventId, Authentication authentication)
     {
-        if (eventsRepository.existsById(eventId))
+        CustomUserDetailsDTO userDetailsDTO = (CustomUserDetailsDTO) authentication.getPrincipal();
+        Events event = eventsRepository.getReferenceById(eventId);
+
+        if (!event.getOrganizer().getUserId().equals(userDetailsDTO.getUserId()))
         {
-            eventsRepository.deleteById(eventId);
-            participantsRepository.deleteAllByEvent_EventId(eventId);
-            invitationsRepository.deleteAllByEvent_EventId(eventId);
-            return ResponseEntity.ok().body("Event with id " + eventId + " has been deleted");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body("You don't have the rights to upload this event");
         }
-        else
+
+        if (!eventsRepository.existsById(eventId))
         {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Event with id " + eventId + " not found");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body("Event with id " + eventId + " not found");
         }
+
+        String eventDirPath = UPLOAD_DIR + File.separator + eventId.toString();
+        File eventDir = new File(eventDirPath);
+
+        // Удалите все фотографии из файловой системы, если папка существует
+        if (eventDir.exists())
+        {
+            try
+            {
+                FileUtils.deleteDirectory(eventDir); // Используйте Apache Commons IO для удаления папки
+            }
+            catch (IOException e)
+            {
+                e.printStackTrace();
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error deleting event folder");
+            }
+        }
+
+        photosRepository.deleteAllByEvent_EventId(eventId);
+        eventsRepository.deleteById(eventId);
+        participantsRepository.deleteAllByEvent_EventId(eventId);
+        invitationsRepository.deleteAllByEvent_EventId(eventId);
+        return ResponseEntity.ok().body("Event with id " + eventId + " has been deleted");
     }
 
 }

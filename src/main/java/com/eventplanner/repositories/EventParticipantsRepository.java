@@ -17,5 +17,5 @@ public interface EventParticipantsRepository extends JpaRepository<EventParticip
 
     List<EventParticipants> findAllByEvent_EventId(UUID eventId);
 
-    Optional<EventParticipants> deleteAllByEvent_EventId(UUID eventId);
+    void deleteAllByEvent_EventId(UUID eventId);
 }

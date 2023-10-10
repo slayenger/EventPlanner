@@ -17,6 +17,6 @@ public interface EventsService {
 
     ResponseEntity<?> updateEvent(UUID eventId, EventsDTO updatedEvent);
 
-    ResponseEntity<?> deleteEvent(UUID eventId);
+    ResponseEntity<?> deleteEvent(UUID eventId, Authentication authentication);
 
 }
