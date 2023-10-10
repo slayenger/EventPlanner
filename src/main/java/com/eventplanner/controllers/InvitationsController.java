@@ -16,8 +16,8 @@ public class InvitationsController
 {
     private final InvitationsService invitationsService;
 
-    @PostMapping("/join_event")
-    public ResponseEntity<?> createInvitation(@RequestBody String link)
+    @PostMapping("/create_invitation/{link}")
+    public ResponseEntity<?> createInvitation(@PathVariable String link)
     {
         return invitationsService.createInvitation(link);
     }

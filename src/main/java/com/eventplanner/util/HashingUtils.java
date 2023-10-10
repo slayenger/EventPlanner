@@ -23,7 +23,7 @@ public class HashingUtils {
             Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
             cipher.init(Cipher.ENCRYPT_MODE, secretKey);
             byte[] encryptedData = cipher.doFinal(data.getBytes("UTF-8"));
-            return Base64.getEncoder().encodeToString(encryptedData);
+            return Base64.getUrlEncoder().encodeToString(encryptedData);
         } catch (Exception e) {
             e.printStackTrace();
             return null;
@@ -35,7 +35,7 @@ public class HashingUtils {
             Key secretKey = new SecretKeySpec(secret.getBytes(), "AES");
             Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
             cipher.init(Cipher.DECRYPT_MODE, secretKey);
-            byte[] decryptedData = cipher.doFinal(Base64.getDecoder().decode(encryptedData));
+            byte[] decryptedData = cipher.doFinal(Base64.getUrlDecoder().decode(encryptedData));
             return new String(decryptedData, "UTF-8");
         } catch (Exception e) {
             e.printStackTrace();
