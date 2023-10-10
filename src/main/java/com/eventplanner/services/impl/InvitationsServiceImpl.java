@@ -235,7 +235,7 @@ public class InvitationsServiceImpl implements InvitationsService
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         CustomUserDetailsDTO userDetailsDTO = (CustomUserDetailsDTO) authentication.getPrincipal();
-        return invitedByUserId.equals(userDetailsDTO.getUserId());
+        return invitedUserId.equals(userDetailsDTO.getUserId());
     }
 
 }
