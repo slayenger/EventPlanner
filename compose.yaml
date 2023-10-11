@@ -1,0 +1,21 @@
+services:
+  postgres-container:
+    image: 'postgres:latest'
+    environment:
+      - 'POSTGRES_DB=EventPlanner'
+      - 'POSTGRES_PASSWORD=hack101cool'
+      - 'POSTGRES_USER=postgres'
+    ports:
+      - '5432'
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres-container:5432/EventPlanner
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: hack101cool
+    depends_on:
+      - postgres-container
