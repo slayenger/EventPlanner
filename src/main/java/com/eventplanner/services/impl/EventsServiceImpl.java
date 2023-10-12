@@ -3,7 +3,6 @@ package com.eventplanner.services.impl;
 import com.eventplanner.dtos.CustomUserDetailsDTO;
 import com.eventplanner.dtos.EventsDTO;
 import com.eventplanner.dtos.ParticipantsRequestDTO;
-import com.eventplanner.entities.EventPhotos;
 import com.eventplanner.entities.Events;
 import com.eventplanner.entities.Users;
 import com.eventplanner.repositories.*;
@@ -23,6 +22,9 @@ import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
+/**
+ * Implementation of the {@link EventsService} interface for managing events in the application.
+ */
 @Service
 @RequiredArgsConstructor
 public class EventsServiceImpl implements EventsService {
@@ -35,6 +37,15 @@ public class EventsServiceImpl implements EventsService {
     private final EventPhotosRepository photosRepository;
     private static final String UPLOAD_DIR = "C:/Users/sinya/IdeaProjects/EventPlannerApp/src/main/resources/static/event_images";
 
+    /**
+     * Creates a new event with the provided event data.
+     * At the beginning of the method, the main fields from the EventsDTO are set, then the event organizer is set using authentication.
+     * After that, the organizer himself is added to the list of participants of this event
+     *
+     * @param eventsDTO       The data of the event to create.
+     * @param authentication  The authentication object of the currently logged-in user.
+     * @return ResponseEntity containing the created event if successful, or an error message if it fails.
+     */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ResponseEntity<?> createNewEvent(EventsDTO eventsDTO, Authentication authentication)
@@ -67,6 +78,11 @@ public class EventsServiceImpl implements EventsService {
         }
     }
 
+    /**
+     * Retrieves a list of all available events.
+     *
+     * @return ResponseEntity containing a list of events if successful, or an error message if it fails.
+     */
     @Override
     public ResponseEntity<?> getAllEvents()
     {
@@ -81,6 +97,12 @@ public class EventsServiceImpl implements EventsService {
         }
     }
 
+    /**
+     * Retrieves an event by its title.
+     *
+     * @param title The title of the event to retrieve.
+     * @return ResponseEntity containing the event if found, or an error message if it doesn't exist.
+     */
     @Override
     public ResponseEntity<?> getEventByTitle(String title)
     {
@@ -96,6 +118,12 @@ public class EventsServiceImpl implements EventsService {
         }
     }
 
+    /**
+     * Retrieves an event by its unique identifier.
+     *
+     * @param eventId The unique identifier of the event to retrieve.
+     * @return ResponseEntity containing the event if found, or an error message if it doesn't exist.
+     */
     @Override
     public ResponseEntity<?> getEventById(UUID eventId)
     {
@@ -111,6 +139,13 @@ public class EventsServiceImpl implements EventsService {
         }
     }
 
+    /**
+     * Updates an existing event with the provided event data.
+     *
+     * @param eventId        The unique identifier of the event to update.
+     * @param updatedEvent  The updated data of the event.
+     * @return ResponseEntity containing the updated event if successful, or an error message if it fails.
+     */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ResponseEntity<?> updateEvent(UUID eventId, EventsDTO updatedEvent)
@@ -132,6 +167,15 @@ public class EventsServiceImpl implements EventsService {
         }
     }
 
+    /**
+     * Deletes an event with the specified unique identifier.
+     * At the beginning of the method, the deletion access rights are checked (the user can only delete his account) using authentication.
+     * Further, after checking the existence of an event with eventID, all photos of this event, its participants and invitations are deleted
+     *
+     * @param eventId         The unique identifier of the event to delete.
+     * @param authentication  The authentication object of the currently logged-in user.
+     * @return ResponseEntity with a success message if the event is deleted, or an error message if it fails.
+     */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ResponseEntity<?> deleteEvent(UUID eventId, Authentication authentication)
@@ -154,12 +198,12 @@ public class EventsServiceImpl implements EventsService {
         String eventDirPath = UPLOAD_DIR + File.separator + eventId.toString();
         File eventDir = new File(eventDirPath);
 
-        // Удалите все фотографии из файловой системы, если папка существует
+        // Delete all photos from the file system if the folder exists
         if (eventDir.exists())
         {
             try
             {
-                FileUtils.deleteDirectory(eventDir); // Используйте Apache Commons IO для удаления папки
+                FileUtils.deleteDirectory(eventDir); // Deleting folder
             }
             catch (IOException e)
             {

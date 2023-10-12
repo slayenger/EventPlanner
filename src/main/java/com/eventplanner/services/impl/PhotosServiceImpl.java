@@ -5,6 +5,7 @@ import com.eventplanner.entities.EventPhotos;
 import com.eventplanner.entities.Events;
 import com.eventplanner.repositories.EventPhotosRepository;
 import com.eventplanner.repositories.EventsRepository;
+import com.eventplanner.services.api.ParticipantsService;
 import com.eventplanner.services.api.PhotosService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -22,6 +23,9 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
 
+/**
+ * Implementation of the {@link PhotosService} interface for managing photos associated with events.
+ */
 @Service
 @RequiredArgsConstructor
 public class PhotosServiceImpl implements PhotosService
@@ -30,6 +34,14 @@ public class PhotosServiceImpl implements PhotosService
     private final EventPhotosRepository photosRepository;
     private final EventsRepository eventsRepository;
 
+    /**
+     * Uploads a photo for a specific event.
+     *
+     * @param eventId         The unique identifier of the event.
+     * @param file            The photo file to upload.
+     * @param authentication  The authentication information of the user performing the upload.
+     * @return A ResponseEntity with a success message or an error message.
+     */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ResponseEntity<?> uploadPhoto(UUID eventId, MultipartFile file, Authentication authentication)
@@ -78,6 +90,12 @@ public class PhotosServiceImpl implements PhotosService
         }
     }
 
+    /**
+     * Retrieves a photo by its unique identifier.
+     *
+     * @param photoId The unique identifier of the photo to retrieve.
+     * @return A ResponseEntity containing the photo data or an error message.
+     */
     @Override
     public ResponseEntity<?> getPhotoById(UUID photoId)
     {
@@ -94,6 +112,12 @@ public class PhotosServiceImpl implements PhotosService
 
     }
 
+    /**
+     * Retrieves all photos associated with a specific event.
+     *
+     * @param eventId The unique identifier of the event.
+     * @return A ResponseEntity containing a list of photos or a message indicating no photos were found.
+     */
     @Override
     public ResponseEntity<?> getPhotosByEvent(UUID eventId)
     {
@@ -109,6 +133,13 @@ public class PhotosServiceImpl implements PhotosService
         }
     }
 
+    /**
+     * Deletes a photo by its unique identifier.
+     *
+     * @param photoId        The unique identifier of the photo to delete.
+     * @param authentication  The authentication information of the user performing the deletion.
+     * @return A ResponseEntity with a success message or an error message.
+     */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ResponseEntity<?> deletePhoto(UUID photoId, Authentication authentication)

@@ -9,6 +9,7 @@ import com.eventplanner.entities.Users;
 import com.eventplanner.repositories.EventParticipantsRepository;
 import com.eventplanner.repositories.EventsRepository;
 import com.eventplanner.repositories.UsersRepository;
+import com.eventplanner.services.api.InvitationsService;
 import com.eventplanner.services.api.ParticipantsService;
 import com.eventplanner.util.HashingUtils;
 import lombok.RequiredArgsConstructor;
@@ -23,6 +24,10 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+/**
+ * This class provides the implementation of the {@link ParticipantsService} interface.
+ * Service class for managing participants in events.
+ */
 @Service
 @RequiredArgsConstructor
 public class ParticipantsServiceImpl implements ParticipantsService
@@ -30,9 +35,14 @@ public class ParticipantsServiceImpl implements ParticipantsService
     private final EventParticipantsRepository participantsRepository;
     private final UsersRepository usersRepository;
     private final EventsRepository eventsRepository;
-    private final HashingUtils hashingUtils;
 
 
+    /**
+     * Adds a participant to the specified event.
+     *
+     * @param participantsRequestDTO Information about the participant and the event.
+     * @return A response indicating the success or failure of the operation.
+     */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ResponseEntity<?> addParticipantToEvent(ParticipantsRequestDTO participantsRequestDTO)
@@ -71,6 +81,12 @@ public class ParticipantsServiceImpl implements ParticipantsService
 
     }
 
+    /**
+     * Retrieves the list of participants for a specific event.
+     *
+     * @param eventId The unique identifier of the event.
+     * @return A response containing the list of participants or an appropriate message.
+     */
     @Override
     public ResponseEntity<?> getEventParticipants(UUID eventId)
     {
@@ -103,6 +119,12 @@ public class ParticipantsServiceImpl implements ParticipantsService
 
     }
 
+    /**
+     * Removes a participant from the specified event.
+     *
+     * @param participantsRequestDTO Information about the participant and the event.
+     * @return A response indicating the success or failure of the removal.
+     */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ResponseEntity<?> removeParticipantFromEvent(ParticipantsRequestDTO participantsRequestDTO)
@@ -122,11 +144,24 @@ public class ParticipantsServiceImpl implements ParticipantsService
         }
     }
 
+    /**
+     * Checks if a user is a participant in a particular event.
+     *
+     * @param eventId The unique identifier of the event.
+     * @param userId  The unique identifier of the user.
+     * @return True if the user is a participant; false otherwise.
+     */
     @Override
     public Boolean isUserParticipant(UUID eventId, UUID userId) {
         return participantsRepository.existsByEvent_EventIdAndUser_UserId(eventId, userId);
     }
 
+    /**
+     * Removes all participants from the specified event.
+     *
+     * @param eventId The unique identifier of the event.
+     * @return A response indicating the success or failure of the removal.
+     */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public ResponseEntity<?> removeAllParticipantsFromEvent(UUID eventId)
@@ -146,6 +181,13 @@ public class ParticipantsServiceImpl implements ParticipantsService
         }
     }
 
+    /**
+     * Generates an invitation link for adding a participant to the event.
+     *
+     * @param requestDTO      Information about the participant and the event.
+     * @param authentication   The authentication context.
+     * @return A response containing the generated invitation link.
+     */
     @Override
     public ResponseEntity<?> generateInvitationLink(ParticipantsRequestDTO requestDTO, Authentication authentication)
     {
