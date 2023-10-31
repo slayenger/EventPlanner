@@ -9,8 +9,9 @@ import java.util.UUID;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class ParticipantsRequestDTO {
+public class ParticipantDTO {
 
     private UUID eventId;
     private UUID userId;
 }
+

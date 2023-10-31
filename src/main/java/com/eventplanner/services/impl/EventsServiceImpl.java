@@ -2,14 +2,20 @@ package com.eventplanner.services.impl;
 
 import com.eventplanner.dtos.CustomUserDetailsDTO;
 import com.eventplanner.dtos.EventsDTO;
-import com.eventplanner.dtos.ParticipantsRequestDTO;
+import com.eventplanner.dtos.EventsResponseDTO;
+import com.eventplanner.dtos.ParticipantDTO;
 import com.eventplanner.entities.Events;
 import com.eventplanner.entities.Users;
+import com.eventplanner.mapper.EventsMapper;
+import com.eventplanner.mapper.ParticipantsMapper;
 import com.eventplanner.repositories.*;
 import com.eventplanner.services.api.EventsService;
 import com.eventplanner.services.api.ParticipantsService;
 import lombok.RequiredArgsConstructor;
 import org.apache.tomcat.util.http.fileupload.FileUtils;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -21,10 +27,12 @@ import java.io.File;
 import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of the {@link EventsService} interface for managing events in the application.
  */
+// TODO refactor all service
 @Service
 @RequiredArgsConstructor
 public class EventsServiceImpl implements EventsService {
@@ -36,6 +44,8 @@ public class EventsServiceImpl implements EventsService {
     private final EventInvitationsRepository invitationsRepository;
     private final EventPhotosRepository photosRepository;
     private static final String UPLOAD_DIR = "C:/Users/sinya/IdeaProjects/EventPlannerApp/src/main/resources/static/event_images";
+    private final EventsMapper eventsMapper;
+    private final ParticipantsMapper participantsMapper;
 
     /**
      * Creates a new event with the provided event data.
@@ -43,38 +53,29 @@ public class EventsServiceImpl implements EventsService {
      * After that, the organizer himself is added to the list of participants of this event
      *
      * @param eventsDTO       The data of the event to create.
-     * @param authentication  The authentication object of the currently logged-in user.
+     *
      * @return ResponseEntity containing the created event if successful, or an error message if it fails.
      */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public ResponseEntity<?> createNewEvent(EventsDTO eventsDTO, Authentication authentication)
+    // TODO create custom exceptions
+    // TODO transaction handling
+    public void createNewEvent(EventsDTO eventsDTO, UUID organizerId)
     {
         try
         {
-            Events newEvent = new Events();
-            newEvent.setTitle(eventsDTO.getTitle());
-            newEvent.setDescription(eventsDTO.getDescription());
-            newEvent.setLocation(eventsDTO.getLocation());
-            newEvent.setDateTime(eventsDTO.getDateTime());
+                Events newEvent = eventsMapper.toEvent(eventsDTO);
+                Users organizer = usersRepository.getReferenceById(organizerId);
+                newEvent.setOrganizer(organizer);
+                eventsRepository.save(newEvent);
 
-            CustomUserDetailsDTO userDetails = (CustomUserDetailsDTO) authentication.getPrincipal();
-
-            Users organizer = usersRepository.getReferenceById(userDetails.getUserId());
-            newEvent.setOrganizer(organizer);
-
-            ParticipantsRequestDTO participantsRequestDTO = new ParticipantsRequestDTO();
-
-            eventsRepository.save(newEvent);
-            participantsRequestDTO.setEventId(newEvent.getEventId());
-            participantsRequestDTO.setUserId(organizer.getUserId());
-            participantsService.addParticipantToEvent(participantsRequestDTO);
-            return ResponseEntity.ok(eventsDTO);
+                ParticipantDTO participantDTO = participantsMapper.toDTO(newEvent.getEventId(),organizerId);
+                participantsService.addParticipantToEvent(participantDTO);
         }
-        catch (Exception e)
+        catch (RuntimeException e)
         {
             e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error creating event");
+            throw new RuntimeException("Error creating event");
         }
     }
 
@@ -84,16 +85,18 @@ public class EventsServiceImpl implements EventsService {
      * @return ResponseEntity containing a list of events if successful, or an error message if it fails.
      */
     @Override
-    public ResponseEntity<?> getAllEvents()
+    public Page<Events> getAllEvents(int page, int size)
     {
-        List<Events> events = eventsRepository.findAll();
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Events> events = eventsRepository.findAll(pageable);
         if (events.isEmpty())
         {
-            return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+            // TODO create custom exception
+            throw new RuntimeException("empty list");
         }
         else
         {
-            return ResponseEntity.ok().body(events);
+            return events;
         }
     }
 
@@ -104,17 +107,17 @@ public class EventsServiceImpl implements EventsService {
      * @return ResponseEntity containing the event if found, or an error message if it doesn't exist.
      */
     @Override
-    public ResponseEntity<?> getEventByTitle(String title)
+    public Events getEventByTitle(String title)
     {
         Events event = eventsRepository.findByTitle(title).orElse(null);
 
         if (event == null)
         {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Event with title " + title + " not found");
+            throw new RuntimeException("Event with title " + title + " not found");
         }
         else
         {
-            return ResponseEntity.ok(event);
+            return event;
         }
     }
 
@@ -125,17 +128,16 @@ public class EventsServiceImpl implements EventsService {
      * @return ResponseEntity containing the event if found, or an error message if it doesn't exist.
      */
     @Override
-    public ResponseEntity<?> getEventById(UUID eventId)
+    public Events getEventById(UUID eventId)
     {
         try
         {
-            Events event = eventsRepository.getReferenceById(eventId);
-            return ResponseEntity.ok(event);
+            return eventsRepository.getReferenceById(eventId);
         }
         catch (Exception e)
         {
             e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Event with id " + eventId + " not found");
+            throw new RuntimeException("Event with id " + eventId + " not found");
         }
     }
 
@@ -148,22 +150,18 @@ public class EventsServiceImpl implements EventsService {
      */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public ResponseEntity<?> updateEvent(UUID eventId, EventsDTO updatedEvent)
+    public Events updateEvent(UUID eventId, EventsDTO updatedEvent)
     {
         if (eventsRepository.existsById(eventId))
         {
             Events event = eventsRepository.getReferenceById(eventId);
-            event.setTitle(updatedEvent.getTitle());
-            event.setDescription(updatedEvent.getDescription());
-            event.setLocation(updatedEvent.getLocation());
-            event.setDateTime(updatedEvent.getDateTime());
-
+            eventsMapper.update(updatedEvent, event);
             eventsRepository.save(event);
-            return ResponseEntity.ok(event);
+            return event;
         }
         else
         {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Event with id " + eventId + " not found");
+           throw new RuntimeException("Event with id " + eventId + " not found");
         }
     }
 
@@ -173,29 +171,19 @@ public class EventsServiceImpl implements EventsService {
      * Further, after checking the existence of an event with eventID, all photos of this event, its participants and invitations are deleted
      *
      * @param eventId         The unique identifier of the event to delete.
-     * @param authentication  The authentication object of the currently logged-in user.
+     *
      * @return ResponseEntity with a success message if the event is deleted, or an error message if it fails.
      */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public ResponseEntity<?> deleteEvent(UUID eventId, Authentication authentication)
+    public void deleteEvent(UUID eventId)
     {
-        CustomUserDetailsDTO userDetailsDTO = (CustomUserDetailsDTO) authentication.getPrincipal();
-        Events event = eventsRepository.getReferenceById(eventId);
-
-        if (!event.getOrganizer().getUserId().equals(userDetailsDTO.getUserId()))
-        {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body("You don't have the rights to upload this event");
-        }
-
         if (!eventsRepository.existsById(eventId))
         {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Event with id " + eventId + " not found");
+            throw new RuntimeException("Event with id " + eventId + " not found");
         }
 
-        String eventDirPath = UPLOAD_DIR + File.separator + eventId.toString();
+        String eventDirPath = UPLOAD_DIR + File.separator + eventId;
         File eventDir = new File(eventDirPath);
 
         // Delete all photos from the file system if the folder exists
@@ -205,18 +193,18 @@ public class EventsServiceImpl implements EventsService {
             {
                 FileUtils.deleteDirectory(eventDir); // Deleting folder
             }
+            // TODO add catch with NotFoundPath exception
             catch (IOException e)
             {
                 e.printStackTrace();
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error deleting event folder");
+                throw new RuntimeException("Error deleting event folder");
             }
         }
 
         photosRepository.deleteAllByEvent_EventId(eventId);
-        eventsRepository.deleteById(eventId);
         participantsRepository.deleteAllByEvent_EventId(eventId);
         invitationsRepository.deleteAllByEvent_EventId(eventId);
-        return ResponseEntity.ok().body("Event with id " + eventId + " has been deleted");
+        eventsRepository.deleteById(eventId);
     }
 
 }

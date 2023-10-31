@@ -1,6 +1,9 @@
 package com.eventplanner.services.api;
 
 import com.eventplanner.dtos.EventsDTO;
+import com.eventplanner.dtos.EventsResponseDTO;
+import com.eventplanner.entities.Events;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 
@@ -15,17 +18,17 @@ public interface EventsService {
      * Creates a new event with the provided event data.
      *
      * @param eventsDTO       The data of the event to create.
-     * @param authentication  The authentication object of the currently logged-in user.
+     *
      * @return ResponseEntity containing the created event if successful, or an error message if it fails.
      */
-    ResponseEntity<?> createNewEvent(EventsDTO eventsDTO, Authentication authentication);
+    void createNewEvent(EventsDTO eventsDTO, UUID organizerId);
 
     /**
      * Retrieves a list of all available events.
      *
      * @return ResponseEntity containing a list of events if successful, or an error message if it fails.
      */
-    ResponseEntity<?> getAllEvents();
+    Page<Events> getAllEvents(int page, int size);
 
     /**
      * Retrieves an event by its title.
@@ -33,7 +36,7 @@ public interface EventsService {
      * @param title The title of the event to retrieve.
      * @return ResponseEntity containing the event if found, or an error message if it doesn't exist.
      */
-    ResponseEntity<?> getEventByTitle(String title);
+    Events getEventByTitle(String title);
 
     /**
      * Retrieves an event by its unique identifier.
@@ -41,7 +44,7 @@ public interface EventsService {
      * @param eventId The unique identifier of the event to retrieve.
      * @return ResponseEntity containing the event if found, or an error message if it doesn't exist.
      */
-    ResponseEntity<?> getEventById(UUID eventId);
+    Events getEventById(UUID eventId);
 
     /**
      * Updates an existing event with the provided event data.
@@ -50,7 +53,7 @@ public interface EventsService {
      * @param updatedEvent  The updated data of the event.
      * @return ResponseEntity containing the updated event if successful, or an error message if it fails.
      */
-    ResponseEntity<?> updateEvent(UUID eventId, EventsDTO updatedEvent);
+    Events updateEvent(UUID eventId, EventsDTO updatedEvent);
 
     /**
      * Deletes an event with the specified unique identifier.
@@ -59,6 +62,6 @@ public interface EventsService {
      * @param authentication  The authentication object of the currently logged-in user.
      * @return ResponseEntity with a success message if the event is deleted, or an error message if it fails.
      */
-    ResponseEntity<?> deleteEvent(UUID eventId, Authentication authentication);
+    void deleteEvent(UUID eventId);
 
 }
