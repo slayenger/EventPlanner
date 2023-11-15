@@ -1,11 +1,10 @@
 package com.eventplanner.services.api;
 
 import com.eventplanner.dtos.EventsDTO;
-import com.eventplanner.dtos.EventsResponseDTO;
 import com.eventplanner.entities.Events;
+import com.eventplanner.exceptions.EmptyListException;
+import com.eventplanner.exceptions.NotFoundException;
 import org.springframework.data.domain.Page;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
 
 import java.util.UUID;
 
@@ -15,18 +14,21 @@ import java.util.UUID;
 public interface EventsService {
 
     /**
-     * Creates a new event with the provided event data.
+     * Creates a new event based on the provided {@link EventsDTO} and organizer ID.
      *
-     * @param eventsDTO       The data of the event to create.
-     *
-     * @return ResponseEntity containing the created event if successful, or an error message if it fails.
+     * @param eventsDTO   The DTO containing event details.
+     * @param organizerId The ID of the organizer user.
+     * @throws NotFoundException If the organizer user with the given ID is not found.
      */
     void createNewEvent(EventsDTO eventsDTO, UUID organizerId);
 
     /**
-     * Retrieves a list of all available events.
+     * Retrieves a paginated list of all events.
      *
-     * @return ResponseEntity containing a list of events if successful, or an error message if it fails.
+     * @param page The page number (0-indexed) to retrieve.
+     * @param size The number of events per page.
+     * @return A {@link Page} containing events.
+     * @throws EmptyListException If there are no events available.
      */
     Page<Events> getAllEvents(int page, int size);
 
@@ -34,7 +36,8 @@ public interface EventsService {
      * Retrieves an event by its title.
      *
      * @param title The title of the event to retrieve.
-     * @return ResponseEntity containing the event if found, or an error message if it doesn't exist.
+     * @return The event with the specified title.
+     * @throws NotFoundException If no event is found with the given title.
      */
     Events getEventByTitle(String title);
 
@@ -42,26 +45,27 @@ public interface EventsService {
      * Retrieves an event by its unique identifier.
      *
      * @param eventId The unique identifier of the event to retrieve.
-     * @return ResponseEntity containing the event if found, or an error message if it doesn't exist.
+     * @return The event with the specified identifier.
+     * @throws NotFoundException If no event is found with the given identifier.
      */
     Events getEventById(UUID eventId);
 
     /**
-     * Updates an existing event with the provided event data.
+     * Updates an existing event with the provided data.
      *
-     * @param eventId       The unique identifier of the event to update.
-     * @param updatedEvent  The updated data of the event.
-     * @return ResponseEntity containing the updated event if successful, or an error message if it fails.
+     * @param eventId      The unique identifier of the event to update.
+     * @param updatedEvent The updated data for the event.
+     * @return The updated event.
+     * @throws NotFoundException If no event is found with the given identifier.
      */
-    Events updateEvent(UUID eventId, EventsDTO updatedEvent);
+    Events updateEvent(UUID eventId, EventsDTO updatedEvent, UUID authenticatedUserId);
 
     /**
-     * Deletes an event with the specified unique identifier.
+     * Deletes an event along with associated data.
      *
-     * @param eventId         The unique identifier of the event to delete.
-     * @param authentication  The authentication object of the currently logged-in user.
-     * @return ResponseEntity with a success message if the event is deleted, or an error message if it fails.
+     * @param eventId The unique identifier of the event to delete.
+     * @throws NotFoundException If no event is found with the given identifier.
      */
-    void deleteEvent(UUID eventId);
+    void deleteEvent(UUID eventId, UUID authenticatedUserId);
 
 }

@@ -6,14 +6,18 @@ import com.eventplanner.dtos.UserDTO;
 import com.eventplanner.entities.EventParticipants;
 import com.eventplanner.entities.Events;
 import com.eventplanner.entities.Users;
+import com.eventplanner.exceptions.EmptyListException;
+import com.eventplanner.exceptions.NotFoundException;
+import com.eventplanner.mappers.UsersMapper;
 import com.eventplanner.repositories.EventParticipantsRepository;
 import com.eventplanner.repositories.EventsRepository;
 import com.eventplanner.repositories.UsersRepository;
 import com.eventplanner.services.api.UsersService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -23,10 +27,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 
 /**
- * Implementation of the UsersService interface responsible for managing user-related operations.
+ * Implementation of the {@link  UsersService} interface responsible for managing user-related operations.
  */
 @Service
 @RequiredArgsConstructor
@@ -36,33 +43,24 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
     private final PasswordEncoder passwordEncoder;
     private final EventParticipantsRepository participantsRepository;
     private final EventsRepository eventsRepository;
+    private final UsersMapper usersMapper;
 
-
-    /**
-     * Retrieves a list of all users.
-     *
-     * @return A ResponseEntity containing a list of user objects or a message indicating no users were found.
-     */
     @Override
-    public ResponseEntity<List<Users>> getAllUsers()
+    public Page<Users> getAllUsers(int page, int size) throws EmptyListException
     {
-        List<Users> users = usersRepository.findAll();
+        Pageable pageable = PageRequest.of(page, size);
+        Page<Users> users = usersRepository.findAll(pageable);
+
         if (users.isEmpty())
         {
-            return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+            throw new EmptyListException("At the moment there is no users");
         }
         else
         {
-            return ResponseEntity.ok(users);
+            return users;
         }
     }
 
-    /**
-     * Registers a new user.
-     *
-     * @param registrationUserDTO The user registration data.
-     * @return The registered user object.
-     */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
     public Users registerUser(RegistrationUserDTO registrationUserDTO)
@@ -75,150 +73,86 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
         return usersRepository.save(user);
     }
 
-    /**
-     * Retrieves a user by their unique identifier.
-     *
-     * @param userId The unique identifier of the user.
-     * @return A ResponseEntity containing the user object or an error message.
-     */
     @Override
-    public ResponseEntity<?> getUserById(UUID userId)
+    public UserDTO getUserById(UUID userId) throws NotFoundException
     {
-        try
-        {
-            Users user = usersRepository.getReferenceById(userId);
-            return ResponseEntity.ok(user);
-        }
-        catch (Exception e)
-        {
-            return ResponseEntity.badRequest().body("User with id: " + userId + " not found.");
-        }
+       if (usersRepository.existsById(userId))
+       {
+           Users user = usersRepository.getReferenceById(userId);
+           return usersMapper.toDTO(user);
+       }
+       else
+       {
+           throw new NotFoundException("User with id: " + userId + " not found");
+       }
     }
 
-    /**
-     * Retrieves a user by their email address.
-     *
-     * @param email The email address of the user.
-     * @return A ResponseEntity containing the user object or an error message.
-     */
     @Override
-    public ResponseEntity<?> getUserByEmail(String email)
+    public UserDTO getUserByEmail(String email) throws NotFoundException
     {
-        Optional<Users> user = usersRepository.findByEmail(email);
 
-        if (user.isPresent())
+        if(usersRepository.existsByEmail(email))
         {
-            return ResponseEntity.ok(user);
+            Optional<Users> user = usersRepository.findByEmail(email);
+            return usersMapper.toDTO(user.get());
         }
         else
         {
-            return ResponseEntity.badRequest().body("User with email: " + email + " not found.");
+            throw new NotFoundException("User with email: " + email + " not found");
         }
     }
 
-    /**
-     * Updates user information.
-     *
-     * @param userId        The unique identifier of the user to update.
-     * @param updatedUser   The updated user data.
-     * @param authentication The authentication information of the user performing the update.
-     * @return A ResponseEntity with a success message or an error message.
-     */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public ResponseEntity<?> updateUser(UUID userId, UserDTO updatedUser, Authentication authentication)
+    public UserDTO updateUser(UUID userId, UserDTO updatedUser) throws NotFoundException
     {
-        CustomUserDetailsDTO userDetailsDTO = (CustomUserDetailsDTO) authentication.getPrincipal();
-        if (!userId.equals(userDetailsDTO.getUserId()))
-        {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("You don't have the rights to update this user");
-        }
 
         if (usersRepository.existsById(userId))
         {
             Users user = usersRepository.getReferenceById(userId);
-            user.setEmail(updatedUser.getEmail());
-            user.setUsername(updatedUser.getUsername());
-            user.setFirstname(updatedUser.getFirstname());
-            user.setLastname(updatedUser.getLastname());
-            usersRepository.save(user);
-            return ResponseEntity.ok().body("Success");
+            usersRepository.save(usersMapper.update(updatedUser, user));
+            return usersMapper.toDTO(user);
         }
         else
         {
-            return ResponseEntity.badRequest().body("User with id " + userId + " not found");
+            throw new NotFoundException("User with id " + userId + " not found");
         }
     }
 
-    /**
-     * Retrieves a list of events associated with a user.
-     *
-     * @param userId The unique identifier of the user.
-     * @return A ResponseEntity containing a list of events or a message indicating no events were found.
-     */
     @Override
-    public ResponseEntity<?> getUserEvents(UUID userId)
+    public PageImpl<Events> getUserEvents(UUID userId, int page, int size)
     {
-        if (!usersRepository.existsById(userId))
-        {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User with id " + userId + " not found");
+        if (!usersRepository.existsById(userId)) {
+            throw new NotFoundException("User with id " + userId + " not found");
         }
 
-        List<EventParticipants> participants = participantsRepository.findAllByUser_UserId(userId);
-        List<Events> events = new ArrayList<>();
-        if (participants.size() > 0)
-        {
-            for (EventParticipants participant: participants)
-            {
-                UUID eventId = participant.getEvent().getEventId();
+        Pageable pageable = PageRequest.of(page, size);
+        Page<EventParticipants> participantsPage = participantsRepository.findAllByUser_UserId(userId, pageable);
 
-                events.add(eventsRepository.getReferenceById(eventId));
-            }
-            return ResponseEntity.ok(events);
-        }
-        else
-        {
-            return ResponseEntity.status(HttpStatus.NO_CONTENT)
-                    .body("The user does not participate in any events");
-        }
+        List<Events> events = participantsPage
+                .stream()
+                .map(participant -> eventsRepository.getReferenceById(participant.getEvent().getEventId()))
+                .toList();
+
+        return new PageImpl<>(events, pageable, participantsPage.getTotalElements());
     }
 
-    /**
-     * Deletes a user by their unique identifier.
-     *
-     * @param userId        The unique identifier of the user to delete.
-     * @param authentication The authentication information of the user performing the deletion.
-     * @return A ResponseEntity with a success message or an error message.
-     */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public ResponseEntity<?> deleteUser(UUID userId, Authentication authentication)
+    public void deleteUser(UUID userId)
     {
-        CustomUserDetailsDTO userDetailsDTO = (CustomUserDetailsDTO) authentication.getPrincipal();
-        if (!userId.equals(userDetailsDTO.getUserId()))
-        {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("You don't have the rights to delete this user");
-        }
 
         if (!usersRepository.existsById(userId))
         {
-            return ResponseEntity.badRequest().body("User with id " + userId + " not found");
+            throw new NotFoundException("User with id " + userId + " not found");
         }
 
         List<EventParticipants> participants = participantsRepository.findAllByUser_UserId(userId);
         participantsRepository.deleteAll(participants);
 
         usersRepository.deleteById(userId);
-        return ResponseEntity.ok().body("Success");
-
     }
 
-    /**
-     * Retrieves a user by their username.
-     *
-     * @param username The username of the user.
-     * @return An Optional containing the user object or an empty result if no user with the provided username is found.
-     */
     @Override
     public Optional<Users> getUserByUsername(String username) {
         return usersRepository.findByUsername(username);

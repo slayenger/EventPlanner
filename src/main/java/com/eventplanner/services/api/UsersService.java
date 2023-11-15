@@ -2,11 +2,13 @@ package com.eventplanner.services.api;
 
 import com.eventplanner.dtos.RegistrationUserDTO;
 import com.eventplanner.dtos.UserDTO;
+import com.eventplanner.entities.Events;
 import com.eventplanner.entities.Users;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
+import com.eventplanner.exceptions.EmptyListException;
+import com.eventplanner.exceptions.NotFoundException;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -16,11 +18,14 @@ import java.util.UUID;
 public interface UsersService {
 
     /**
-     * Retrieves a list of all users.
+     * Retrieves a paginated list of all users.
      *
-     * @return A ResponseEntity containing a list of user objects or a message indicating no users were found.
+     * @param page The page number to retrieve (0-indexed).
+     * @param size The number of users to include on each page.
+     * @return A {@link Page} of {@link Users} containing the users for the specified page.
+     * @throws EmptyListException if there are no users available.
      */
-    ResponseEntity<List<Users>> getAllUsers();
+    Page<Users> getAllUsers(int page, int size);
 
     /**
      * Registers a new user.
@@ -33,45 +38,51 @@ public interface UsersService {
     /**
      * Retrieves a user by their unique identifier.
      *
-     * @param userId The unique identifier of the user.
-     * @return A ResponseEntity containing the user object or an error message.
+     * @param userId The unique identifier of the user to retrieve.
+     * @return A {@link UserDTO} representing the user with the specified ID.
+     * @throws NotFoundException if no user is found with the given ID.
      */
-    ResponseEntity<?> getUserById(UUID userId);
+    UserDTO getUserById(UUID userId);
 
     /**
      * Retrieves a user by their email address.
      *
-     * @param email The email address of the user.
-     * @return A ResponseEntity containing the user object or an error message.
+     * @param email The email address of the user to retrieve.
+     * @return A {@link UserDTO} representing the user with the specified email.
+     * @throws NotFoundException if no user is found with the given email address.
      */
-    ResponseEntity<?> getUserByEmail(String email);
+    UserDTO getUserByEmail(String email);
 
     /**
      * Updates user information.
      *
-     * @param userId        The unique identifier of the user to update.
-     * @param updatedUser   The updated user data.
-     * @param authentication The authentication information of the user performing the update.
-     * @return A ResponseEntity with a success message or an error message.
+     * @param userId      The ID of the user to be updated.
+     * @param updatedUser A {@link UserDTO} containing the updated information.
+     * @return A {@link UserDTO} representing the updated user.
+     * @throws NotFoundException if no user is found with the given ID.
      */
-    ResponseEntity<?> updateUser(UUID userId, UserDTO updatedUser, Authentication authentication);
+    UserDTO updateUser(UUID userId, UserDTO updatedUser);
 
     /**
-     * Retrieves a list of events associated with a user.
+     * Retrieves a paginated list of events in which the user participates.
      *
-     * @param userId The unique identifier of the user.
-     * @return A ResponseEntity containing a list of events or a message indicating no events were found.
+     * @param userId The ID of the user for whom to retrieve events.
+     * @param page   The page number (zero-based).
+     * @param size   The size of the page to be retrieved.
+     * @return A {@link PageImpl} containing the paginated list of events.
+     * @throws NotFoundException   if no user is found with the given ID.
+     * @throws EmptyListException  if the user does not participate in any events.
      */
-    ResponseEntity<?> getUserEvents(UUID userId);
+
+    PageImpl<Events> getUserEvents(UUID userId, int page, int size);
 
     /**
-     * Deletes a user by their unique identifier.
+     * Deletes a user and removes them from all events they are participating in.
      *
-     * @param userId        The unique identifier of the user to delete.
-     * @param authentication The authentication information of the user performing the deletion.
-     * @return A ResponseEntity with a success message or an error message.
+     * @param userId The ID of the user to be deleted.
+     * @throws NotFoundException if no user is found with the given ID.
      */
-    ResponseEntity<?> deleteUser(UUID userId, Authentication authentication);
+    void deleteUser(UUID userId);
 
     /**
      * Retrieves a user by their username.

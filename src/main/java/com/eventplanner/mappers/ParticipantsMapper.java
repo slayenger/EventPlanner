@@ -1,7 +1,6 @@
-package com.eventplanner.mapper;
+package com.eventplanner.mappers;
 
 import com.eventplanner.dtos.ParticipantDTO;
-import com.eventplanner.entities.EventParticipants;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;

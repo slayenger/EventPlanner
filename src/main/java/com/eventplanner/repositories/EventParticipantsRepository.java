@@ -1,6 +1,8 @@
 package com.eventplanner.repositories;
 
 import com.eventplanner.entities.EventParticipants;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -15,9 +17,13 @@ public interface EventParticipantsRepository extends JpaRepository<EventParticip
 
     boolean existsByEvent_EventIdAndUser_UserId(UUID eventId, UUID userId);
 
+    Page<EventParticipants> findAllByEvent_EventId(UUID eventId, Pageable pageable);
+
     List<EventParticipants> findAllByEvent_EventId(UUID eventId);
 
     void deleteAllByEvent_EventId(UUID eventId);
 
     List<EventParticipants> findAllByUser_UserId(UUID userId);
+
+    Page<EventParticipants> findAllByUser_UserId(UUID userId, Pageable pageable);
 }

@@ -3,6 +3,9 @@ package com.eventplanner.controllers;
 import com.eventplanner.dtos.CustomUserDetailsDTO;
 import com.eventplanner.dtos.EventsDTO;
 import com.eventplanner.entities.Events;
+import com.eventplanner.exceptions.EmptyListException;
+import com.eventplanner.exceptions.InsufficientPermissionException;
+import com.eventplanner.exceptions.NotFoundException;
 import com.eventplanner.services.api.EventsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -29,25 +32,25 @@ public class EventsController {
             Page<Events> events = eventsService.getAllEvents(page, size);
             return ResponseEntity.ok().body(events);
         }
-        catch (RuntimeException e)
+        catch (EmptyListException e)
         {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.NO_CONTENT).build();
+            return ResponseEntity.status(HttpStatus.NO_CONTENT).body(e.getMessage());
         }
     }
 
     @PostMapping
-    public ResponseEntity<?> createNewEvent(@RequestBody EventsDTO eventsDTO, @AuthenticationPrincipal CustomUserDetailsDTO userDetails)
+    public ResponseEntity<?> createNewEvent(@RequestBody EventsDTO eventsDTO,
+                                            @AuthenticationPrincipal CustomUserDetailsDTO userDetails)
     {
         try
         {
             eventsService.createNewEvent(eventsDTO, userDetails.getUserId());
             return ResponseEntity.ok("Event created successfully");
         }
-        catch (Exception e)
+        catch (NotFoundException e)
         {
             e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error creating event");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("User not found");
         }
     }
 
@@ -68,23 +71,23 @@ public class EventsController {
     }
 
     @PutMapping("/{eventId}")
-    public ResponseEntity<?> updateEvent(@PathVariable UUID eventId, @RequestBody EventsDTO updatedEvent,
+    public ResponseEntity<?> updateEvent(@PathVariable UUID eventId,
+                                         @RequestBody EventsDTO updatedEvent,
                                          @AuthenticationPrincipal CustomUserDetailsDTO userDetails)
     {
         try
         {
-            Events event = eventsService.getEventById(eventId);
-            if (!event.getOrganizer().getUserId().equals(userDetails.getUserId()))
-            {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body("You don't have the rights to update this event");
-            }
-            return ResponseEntity.status(HttpStatus.OK).body(eventsService.updateEvent(eventId,updatedEvent));
+            UUID authenticatedUserId = userDetails.getUserId();
+            return ResponseEntity.status(HttpStatus.OK).body(eventsService.updateEvent(eventId,updatedEvent, authenticatedUserId));
         }
-        catch (Exception e)
+        catch (InsufficientPermissionException err)
         {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.NO_CONTENT).body("Event with id " + eventId + " not found");
+            err.printStackTrace();
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(err.getMessage());
+        }
+        catch (NotFoundException err)
+        {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err.getMessage());
         }
 
     }
@@ -97,10 +100,10 @@ public class EventsController {
             Events event = eventsService.getEventByTitle(title);
             return ResponseEntity.status(HttpStatus.OK).body(event);
         }
-        catch (Exception e)
+        catch (NotFoundException err)
         {
-            e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("Event with title " + title + " not found");
+            err.printStackTrace();
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err.getMessage());
         }
     }
 
@@ -109,17 +112,17 @@ public class EventsController {
     {
         try
         {
-            Events event = eventsService.getEventById(eventId);
-            if (!event.getOrganizer().getUserId().equals(userDetails.getUserId())) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body("You don't have the rights to delete this event");
-            }
-            eventsService.deleteEvent(eventId);
+            UUID authenticatedUserId = userDetails.getUserId();
+            eventsService.deleteEvent(eventId, authenticatedUserId);
             return ResponseEntity.status(HttpStatus.OK).body("Event with id " + eventId + " has been deleted");
         }
-        catch (Exception e)
+        catch (NotFoundException err)
         {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("error:(");
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err.getMessage());
+        }
+        catch (InsufficientPermissionException err)
+        {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(err.getMessage());
         }
     }
 }

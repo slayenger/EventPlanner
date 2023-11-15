@@ -1,4 +1,4 @@
-package com.eventplanner.mapper;
+package com.eventplanner.mappers;
 
 import com.eventplanner.dtos.EventsDTO;
 import com.eventplanner.dtos.EventsResponseDTO;

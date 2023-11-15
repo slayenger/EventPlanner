@@ -1,16 +1,17 @@
 package com.eventplanner.services.impl;
 
-import com.eventplanner.dtos.CustomUserDetailsDTO;
 import com.eventplanner.entities.EventPhotos;
 import com.eventplanner.entities.Events;
+import com.eventplanner.exceptions.EmptyListException;
+import com.eventplanner.exceptions.InsufficientPermissionException;
+import com.eventplanner.exceptions.NotFoundException;
 import com.eventplanner.repositories.EventPhotosRepository;
 import com.eventplanner.repositories.EventsRepository;
-import com.eventplanner.services.api.ParticipantsService;
 import com.eventplanner.services.api.PhotosService;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +22,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.*;
+import java.util.UUID;
 
 /**
  * Implementation of the {@link PhotosService} interface for managing photos associated with events.
@@ -34,129 +35,87 @@ public class PhotosServiceImpl implements PhotosService
     private final EventPhotosRepository photosRepository;
     private final EventsRepository eventsRepository;
 
-    /**
-     * Uploads a photo for a specific event.
-     *
-     * @param eventId         The unique identifier of the event.
-     * @param file            The photo file to upload.
-     * @param authentication  The authentication information of the user performing the upload.
-     * @return A ResponseEntity with a success message or an error message.
-     */
+
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public ResponseEntity<?> uploadPhoto(UUID eventId, MultipartFile file, Authentication authentication)
-    {
-        CustomUserDetailsDTO userDetailsDTO = (CustomUserDetailsDTO) authentication.getPrincipal();
+    public String uploadPhoto(UUID eventId, MultipartFile file, UUID authenticatedUserId) throws IOException {
         Events event = eventsRepository.getReferenceById(eventId);
-        if (!event.getOrganizer().getUserId().equals(userDetailsDTO.getUserId()))
+        if (!event.getOrganizer().getUserId().equals(authenticatedUserId))
         {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("You don't have the rights to upload this photo");
+            throw new InsufficientPermissionException("You don't have the rights to upload this photo");
         }
 
-        try
+        if (file.isEmpty())
         {
-            if (file.isEmpty())
+            throw new IllegalArgumentException("Please select the file to download");
+        }
+
+        String eventDirPath = UPLOAD_DIR + File.separator + eventId;
+        File eventDir = new File(eventDirPath);
+        if (!eventDir.exists())
+        {
+            boolean dirCreated = eventDir.mkdirs(); // Creating an event folder if it does not exist
+            if (!dirCreated)
             {
-                return ResponseEntity.badRequest().body("Please select the file to download");
+                throw new IOException("Failed to create event directory");
             }
-
-            String eventDirPath = UPLOAD_DIR + File.separator + eventId.toString();
-            File eventDir = new File(eventDirPath);
-            if (!eventDir.exists())
-            {
-                boolean dirCreated = eventDir.mkdirs(); // Creating an event folder if it does not exist
-                if (!dirCreated)
-                {
-                    throw new IOException("Failed to create event directory");
-                }
-            }
-
-            String fileName = file.getOriginalFilename();
-            String filePath = eventDirPath + File.separator + fileName;
-            File dest = new File(filePath);
-            file.transferTo(dest); //save photo in event folder
-
-            EventPhotos eventPhoto = new EventPhotos();
-            eventPhoto.setEvent(eventsRepository.getReferenceById(eventId));
-            eventPhoto.setPath(filePath);
-            photosRepository.save(eventPhoto);
-
-            return ResponseEntity.ok()
-                    .body("Photo was uploaded to event with id " + eventId + "\n Path: " + filePath);
         }
-        catch (IOException e)
-        {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("File upload error");
-        }
+
+        String fileName = file.getOriginalFilename();
+        String filePath = eventDirPath + File.separator + fileName;
+        File dest = new File(filePath);
+        file.transferTo(dest); //save photo in event folder
+
+        EventPhotos eventPhoto = new EventPhotos();
+        eventPhoto.setEvent(eventsRepository.getReferenceById(eventId));
+        eventPhoto.setPath(filePath);
+        photosRepository.save(eventPhoto);
+
+        return "Photo was uploaded to event with id " + eventId + "\n Path: " + filePath;
     }
 
-    /**
-     * Retrieves a photo by its unique identifier.
-     *
-     * @param photoId The unique identifier of the photo to retrieve.
-     * @return A ResponseEntity containing the photo data or an error message.
-     */
     @Override
-    public ResponseEntity<?> getPhotoById(UUID photoId)
+    public EventPhotos getPhotoById(UUID photoId) throws NotFoundException
     {
 
         if (!photosRepository.existsById(photoId))
         {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Photo with id " + photoId + " not found");
+            throw new NotFoundException("Photo with id " + photoId + " not found");
         }
 
-        EventPhotos photo = photosRepository.getReferenceById(photoId);
-
-        return ResponseEntity.ok(photo);
-
+        return photosRepository.getReferenceById(photoId);
     }
 
-    /**
-     * Retrieves all photos associated with a specific event.
-     *
-     * @param eventId The unique identifier of the event.
-     * @return A ResponseEntity containing a list of photos or a message indicating no photos were found.
-     */
     @Override
-    public ResponseEntity<?> getPhotosByEvent(UUID eventId)
+    public Page<EventPhotos> getPhotosByEvent(UUID eventId, int page, int size)
     {
-        List<EventPhotos> eventPhotosList = photosRepository.findAllByEvent_EventId(eventId);
-
+        Pageable pageable = PageRequest.of(page, size);
+        Page<EventPhotos> eventPhotosList = photosRepository.findAllByEvent_EventId(eventId, pageable);
         if (eventPhotosList.isEmpty())
         {
-            return ResponseEntity.status(HttpStatus.NO_CONTENT).body("There are no photos for this event");
+            throw new EmptyListException("There are no photos for event with id " + eventId);
         }
         else
         {
-            return ResponseEntity.ok(eventPhotosList);
+            return eventPhotosList;
         }
     }
 
-    /**
-     * Deletes a photo by its unique identifier.
-     *
-     * @param photoId        The unique identifier of the photo to delete.
-     * @param authentication  The authentication information of the user performing the deletion.
-     * @return A ResponseEntity with a success message or an error message.
-     */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public ResponseEntity<?> deletePhoto(UUID photoId, Authentication authentication)
+    public void deletePhoto(UUID photoId, UUID authenticatedUserId)
     {
         if (!photosRepository.existsById(photoId))
         {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body("Photo with id " + photoId + " not found");
+            throw new NotFoundException("Photo with id " + photoId + " not found");
         }
 
-        CustomUserDetailsDTO userDetailsDTO = (CustomUserDetailsDTO) authentication.getPrincipal();
         UUID eventId = photosRepository.getReferenceById(photoId).getEvent().getEventId();
         Events event = eventsRepository.getReferenceById(eventId);
 
-        if (!event.getOrganizer().getUserId().equals(userDetailsDTO.getUserId()))
+        if (!event.getOrganizer().getUserId().equals(authenticatedUserId))
         {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("You don't have the rights to delete this photo");
+            throw new InsufficientPermissionException("You don't have the rights to delete this photo");
         }
 
         try
@@ -167,10 +126,8 @@ public class PhotosServiceImpl implements PhotosService
         catch (IOException e)
         {
             e.printStackTrace();
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Error deleting photo file");
         }
 
         photosRepository.deleteById(photoId);
-        return ResponseEntity.ok().body("Photo with id " + photoId + " was successfully deleted");
     }
 }

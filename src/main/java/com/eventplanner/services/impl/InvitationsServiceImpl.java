@@ -1,9 +1,15 @@
 package com.eventplanner.services.impl;
 
 import com.eventplanner.dtos.CustomUserDetailsDTO;
-import com.eventplanner.dtos.ParticipantsRequestDTO;
+import com.eventplanner.dtos.ParticipantDTO;
 import com.eventplanner.entities.EventInvitations;
 import com.eventplanner.entities.Events;
+import com.eventplanner.exceptions.EmptyListException;
+import com.eventplanner.exceptions.InsufficientPermissionException;
+import com.eventplanner.exceptions.NotFoundException;
+import com.eventplanner.exceptions.participants.InvalidLinkException;
+import com.eventplanner.exceptions.participants.NotParticipantException;
+import com.eventplanner.exceptions.participants.UserIsParticipantException;
 import com.eventplanner.repositories.EventInvitationsRepository;
 import com.eventplanner.repositories.EventsRepository;
 import com.eventplanner.repositories.UsersRepository;
@@ -12,8 +18,9 @@ import com.eventplanner.services.api.ParticipantsService;
 import com.eventplanner.util.HashingUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -21,7 +28,10 @@ import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.Timestamp;
-import java.util.*;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 /**
  * This class provides the implementation of the {@link InvitationsService} interface,
@@ -36,20 +46,11 @@ public class InvitationsServiceImpl implements InvitationsService
     private final UsersRepository usersRepository;
     private final ParticipantsService participantsService;
 
-    /**
-     * Creates an invitation with the provided link.
-     * First, the link is decoded. After that, it is checked whether this user can create a link to the invitation.
-     * After the link is validated and ResponseEntity returns ok in case of successful creation of the invitation or BAD_REQUEST in case the link failed validation.
-     *
-     * @param link The link for the invitation.
-     * @return ResponseEntity with a success message if the invitation is created, or an error message if it fails.
-     */
+
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public ResponseEntity<?> createInvitation(String link)
+    public EventInvitations createInvitation(String link) throws NotParticipantException, InvalidLinkException
     {
-        try
-        {
             Map<String, UUID> linkData = parseInvitationLink(link);
             UUID eventId = linkData.get("eventId");
             UUID invitedUserId = linkData.get("invitedUserId");
@@ -57,177 +58,119 @@ public class InvitationsServiceImpl implements InvitationsService
 
             if (!participantsService.isUserParticipant(eventId,invitedByUserId))
             {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                        .body("The invited user with id " + invitedByUserId
-                                + " is not participant in this event with id " + eventId);
+                throw new NotParticipantException("The invited user with id " + invitedByUserId
+                        + " is not participant in this event with id " + eventId);
             }
 
             if (validateInvitationLink(eventId, invitedUserId, invitedByUserId))
             {
                 EventInvitations eventInvitations = setInvitationData(eventId, invitedByUserId, invitedUserId, link);
                 invitationsRepository.save(eventInvitations);
+                return eventInvitations;
             }
             else
             {
-                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("Invalid link " + link);
+                throw new InvalidLinkException("Invalid link: " + link);
             }
-
-            return ResponseEntity.ok("Success");
-        }
-        catch (Exception e)
-        {
-            e.printStackTrace();
-            throw new IllegalArgumentException("error decrypting");
-        }
     }
 
-    /**
-     * Retrieves invitations associated with a specific event.
-     *
-     * @param eventId The unique identifier of the event.
-     * @return ResponseEntity containing a list of invitations for the event if successful, or an error message if there are no invitations.
-     */
     @Override
-    public ResponseEntity<?> getInvitationsByEvent(UUID eventId)
+    public Page<EventInvitations> getInvitationsByEvent(UUID eventId, int page, int size) throws EmptyListException
     {
-        List<EventInvitations> invitations = invitationsRepository.findAllByEvent_EventId(eventId);
+
+        Pageable pageable = PageRequest.of(page, size);
+        Page<EventInvitations> invitations = invitationsRepository.findAllByEvent_EventId(eventId,pageable);
         if (invitations.isEmpty())
         {
-            return ResponseEntity.status(HttpStatus.NO_CONTENT).body("There are no invitations for this event");
+            throw new EmptyListException("There are no invitations for this event: " + eventId);
         }
         else
         {
-            return ResponseEntity.ok(invitations);
+            return invitations;
         }
     }
 
-    /**
-     * Retrieves invitations for a specific user.
-     *
-     * @param userId The unique identifier of the user.
-     * @return ResponseEntity containing a list of invitations for the user if successful, or an error message if there are no invitations.
-     */
     @Override
-    public ResponseEntity<?> getInvitationsByUser(UUID userId)
+    public Page<EventInvitations> getInvitationsByUser(UUID userId, int page, int size) throws EmptyListException
     {
-        List<EventInvitations> invitations = invitationsRepository.findAllByInvitedUser_UserId(userId);
+        Pageable pageable = PageRequest.of(page, size);
+        Page<EventInvitations> invitations = invitationsRepository.findAllByInvitedUser_UserId(userId, pageable);
         if (invitations.isEmpty())
         {
-            return ResponseEntity.status(HttpStatus.NO_CONTENT).body("There are no invitations for this user");
+            throw new EmptyListException("There are no invitations for this user: " + userId);
         }
         else
         {
-            return ResponseEntity.ok(invitations);
+            return invitations;
         }
-
     }
 
-    /**
-     * Accepts an invitation with the specified identifier.
-     * At the beginning, it is checked whether this invitation exists.
-     * After that, it is checked whether the authenticated user can accept this invitation (he can, if it is intended for him).
-     * After verification, the user becomes a participant of the event and the invitation is deleted, if everything was successful, or BAD_REQUEST, if the user is already a participant of this event.
-     *
-     * @param invitationId    The unique identifier of the invitation to accept.
-     * @param authentication   The authentication object of the currently logged-in user.
-     * @return ResponseEntity with a success message if the invitation is accepted, or an error message if it fails.
-     */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public ResponseEntity<?> acceptInvitation(UUID invitationId, Authentication authentication)
+    public void acceptInvitation(UUID invitationId, UUID authenticatedUserId)
+            throws NotFoundException, InsufficientPermissionException, UserIsParticipantException
     {
         if (!invitationsRepository.existsById(invitationId))
         {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Invitation with id " + invitationId + " not found");
+            throw new NotFoundException("Invitation with id " + invitationId + " not found");
         }
         EventInvitations invitation = invitationsRepository.getReferenceById(invitationId);
 
-        CustomUserDetailsDTO userDetailsDTO = (CustomUserDetailsDTO) authentication.getPrincipal();
-        UUID userId = userDetailsDTO.getUserId();
-        if (!userId.equals(invitation.getInvitedUser().getUserId()))
+        if (!authenticatedUserId.equals(invitation.getInvitedUser().getUserId()))
         {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("WTFMAN");
+            throw new InsufficientPermissionException("You do not have permission to perform this action");
         }
-        if (participantsService.isUserParticipant(invitation.getEvent().getEventId(),userId))
+        if (participantsService.isUserParticipant(invitation.getEvent().getEventId(), authenticatedUserId))
         {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                    .body("User with id " + userId
-                            + " is already a participant of the event with id " + invitation.getEvent().getEventId());
+            throw new UserIsParticipantException("User with id " + authenticatedUserId
+                    + " is already a participant of the event with id " + invitation.getEvent().getEventId());
         }
         UUID eventId = invitation.getEvent().getEventId();
-        ParticipantsRequestDTO requestDTO = new ParticipantsRequestDTO(eventId, userId);
+        ParticipantDTO requestDTO = new ParticipantDTO(eventId, authenticatedUserId);
 
-        ResponseEntity<?> response = ResponseEntity.ok(participantsService
-                .addParticipantToEvent(requestDTO)).getBody();
+        participantsService.addParticipantToEvent(requestDTO);
         invitationsRepository.delete(invitation);
-
-        return response;
     }
 
-    /**
-     * Retrieves the status of an invitation by its identifier. If this invitation exists, it is rejected and deleted.
-     *
-     * @param invitationId The unique identifier of the invitation.
-     * @return ResponseEntity containing the invitation status if found, or an error message if it doesn't exist.
-     */
     @Override
     @Transactional(isolation = Isolation.READ_COMMITTED)
-    public ResponseEntity<?> declineInvitation(UUID invitationId)
+    public void declineInvitation(UUID invitationId) throws NotFoundException
     {
         if (!invitationsRepository.existsById(invitationId))
         {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Invitation with id " + invitationId + " not found");
+            throw new NotFoundException("Invitation with id " + invitationId + " not found");
         }
         invitationsRepository.deleteById(invitationId);
-        return ResponseEntity.ok().body("Invitation with id " + invitationId + " was declined");
     }
 
-
-    /**
-     * Retrieves the status of an invitation by its identifier.
-     *
-     * @param invitationId The unique identifier of the invitation.
-     * @return ResponseEntity containing the invitation status if found, or an error message if it doesn't exist.
-     */
     @Override
-    public ResponseEntity<?> getInvitationStatus(UUID invitationId)
+    public String getInvitationStatus(UUID invitationId) throws NotFoundException
     {
+        if (!invitationsRepository.existsById(invitationId))
+        {
+            throw new NotFoundException("Invitation with id " + invitationId + " not found");
+        }
+
         EventInvitations invitation = invitationsRepository.getReferenceById(invitationId);
         UUID eventId = invitation.getEvent().getEventId();
         Events event = eventsRepository.getReferenceById(eventId);
         if (event.getDateTime().after(new Date()))
         {
             eventsRepository.deleteById(eventId);
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("The event has already ended");
+            return "The event has already ended";
         }
 
-        if (!invitationsRepository.existsById(invitationId))
-        {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Invitation with id " + invitationId + " not found");
-        }
-        return ResponseEntity.ok()
-                .body("The invitation with id " + invitationId + " was neither accepted nor declined");
+        return  "The invitation with id " + invitationId + " was neither accepted nor declined";
     }
 
-    /**
-     * Deletes an invitation with the specified identifier.
-     *
-     * @param invitationId The unique identifier of the invitation to delete.
-     * @return ResponseEntity with a success message if the invitation is deleted, or an error message if it fails.
-     */
     @Override
-    public ResponseEntity<?> deleteInvitation(UUID invitationId)
+    public void deleteInvitation(UUID invitationId)
     {
         if (!invitationsRepository.existsById(invitationId))
         {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body("Invitation with id " + invitationId + " not found");
+            throw new NotFoundException("Invitation with id " + invitationId + " not found");
         }
         invitationsRepository.deleteById(invitationId);
-        return ResponseEntity.ok().body("Invitation with id " + invitationId + " was successfully deleted");
     }
 
     /**

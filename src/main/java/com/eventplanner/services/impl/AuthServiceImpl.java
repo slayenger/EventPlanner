@@ -1,13 +1,13 @@
 package com.eventplanner.services.impl;
 
-import com.eventplanner.dtos.*;
+import com.eventplanner.dtos.JwtRequestDTO;
+import com.eventplanner.dtos.JwtResponseDTO;
+import com.eventplanner.dtos.RegistrationUserDTO;
+import com.eventplanner.dtos.UserDTO;
 import com.eventplanner.entities.Users;
 import com.eventplanner.security.jwt.JwtTokenUtils;
 import com.eventplanner.services.api.AuthService;
 import lombok.RequiredArgsConstructor;
-import lombok.extern.slf4j.Slf4j;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -29,14 +29,8 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenUtils jwtTokenUtil;
     private final AuthenticationManager authenticationManager;
 
-    /**
-     * Authenticates a user using the provided authentication request.
-     *
-     * @param authRequest The authentication request containing the user's username and password.
-     * @return ResponseEntity containing a JWT token if authentication is successful, or an error message if it fails.
-     */
     @Override
-    public ResponseEntity<?> authenticateUser(@RequestBody JwtRequestDTO authRequest) {
+    public JwtResponseDTO authenticateUser(@RequestBody JwtRequestDTO authRequest) {
 
         try
         {
@@ -44,44 +38,34 @@ public class AuthServiceImpl implements AuthService {
             authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
                     authRequest.getUsername(),authRequest.getPassword())
             );
+
+            // Authentication failed due to incorrect credentials
+            UserDetails userDetails = usersService.loadUserByUsername(authRequest.getUsername());
+            String token = jwtTokenUtil.generateToken(userDetails);
+
+            return new JwtResponseDTO(token);
         }
         catch (BadCredentialsException e)
         {
             // Authentication failed due to incorrect credentials
-            System.out.println("Error " + authRequest.getUsername() + " " + authRequest.getPassword());
-
-            return  new ResponseEntity<>(new BadCredentialsDTO(HttpStatus.UNAUTHORIZED.value(),
-                    "Login or password entered incorrectly"), HttpStatus.UNAUTHORIZED) ;
+            throw new BadCredentialsException("Error "
+                    + authRequest.getUsername() + " " + authRequest.getPassword());
         }
-
-        // Authentication failed due to incorrect credentials
-        UserDetails userDetails = usersService.loadUserByUsername(authRequest.getUsername());
-        String token = jwtTokenUtil.generateToken(userDetails);
-
-        return ResponseEntity.ok(new JwtResponseDTO(token));
     }
 
-    /**
-     * Registers a new user with the provided registration data.
-     *
-     * @param user The registration data of the user.
-     * @return ResponseEntity containing the registered user's details if registration is successful, or an error message if it fails.
-     */
     @Transactional(isolation = Isolation.READ_COMMITTED)
     @Override
-    public ResponseEntity<?> registerUser(RegistrationUserDTO user)
+    public UserDTO registerUser(RegistrationUserDTO user)
     {
         // Checking the input data during registration
         if (!user.getPassword().equals(user.getConfirmPassword()))
         {
-            return new ResponseEntity<>(new BadCredentialsDTO(
-                    HttpStatus.BAD_REQUEST.value(), "Passwords don't match"
-            ), HttpStatus.BAD_REQUEST);
+            throw new BadCredentialsException("Passwords don't matches");
+
         }
         if (usersService.getUserByUsername(user.getUsername()).isPresent())
         {
-            return new ResponseEntity<>(new BadCredentialsDTO(HttpStatus.BAD_REQUEST.value(),
-                    "The user with the specified name already exists"), HttpStatus.BAD_REQUEST);
+            throw new BadCredentialsException("The user with the specified name already exists");
         }
 
         try
@@ -89,12 +73,12 @@ public class AuthServiceImpl implements AuthService {
             // Register the user
             Users users = usersService.registerUser(user);
 
-            return ResponseEntity.status(HttpStatus.CREATED).body(new UserDTO(users.getEmail(), users.getUsername(),
-                    users.getFirstname(), users.getLastname()));
+            return new UserDTO(users.getEmail(), users.getUsername(),
+                    users.getFirstname(), users.getLastname());
         }
         catch (Exception e)
         {
-            return ResponseEntity.badRequest().body("Registration error: " + e.getMessage());
+            throw new RuntimeException("Error occurred while authenticate user");
         }
     }
 }

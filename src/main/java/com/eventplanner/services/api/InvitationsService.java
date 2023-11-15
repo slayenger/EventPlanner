@@ -1,7 +1,11 @@
 package com.eventplanner.services.api;
 
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.Authentication;
+import com.eventplanner.entities.EventInvitations;
+import com.eventplanner.exceptions.EmptyListException;
+import com.eventplanner.exceptions.InsufficientPermissionException;
+import com.eventplanner.exceptions.NotFoundException;
+import com.eventplanner.exceptions.participants.UserIsParticipantException;
+import org.springframework.data.domain.Page;
 
 import java.util.UUID;
 
@@ -11,61 +15,68 @@ import java.util.UUID;
 public interface InvitationsService {
 
     /**
-     * Creates an invitation with the provided link.
+     * Creates an invitation using the provided link.
      *
-     * @param link The link for the invitation.
-     * @return ResponseEntity with the created invitation if successful, or an error message if it fails.
+     * @param link The invitation link.
+     * @return The created EventInvitations object.
      */
-    ResponseEntity<?> createInvitation(String link);
+    EventInvitations createInvitation(String link);
 
     /**
-     * Retrieves invitations associated with a specific event.
+     * Retrieves a paginated list of invitations for a specific event.
      *
      * @param eventId The unique identifier of the event.
-     * @return ResponseEntity containing a list of invitations for the event if successful, or an error message if there are no invitations.
+     * @param page    The page number (zero-based) of the result set to retrieve.
+     * @param size    The number of invitations per page.
+     * @return A Page object containing the list of EventInvitations for the specified event.
+     * @throws EmptyListException If there are no invitations for the specified event.
      */
-    ResponseEntity<?> getInvitationsByEvent(UUID eventId);
+    Page<EventInvitations> getInvitationsByEvent(UUID eventId, int page, int size);
 
     /**
-     * Retrieves invitations for a specific user.
+     * Retrieves a paginated list of invitations for a specific user.
      *
      * @param userId The unique identifier of the user.
-     * @return ResponseEntity containing a list of invitations for the user if successful, or an error message if there are no invitations.
+     * @param page   The page number (zero-based) of the result set to retrieve.
+     * @param size   The number of invitations per page.
+     * @return A Page object containing the list of EventInvitations for the specified user.
+     * @throws EmptyListException If there are no invitations for the specified user.
      */
-    ResponseEntity<?> getInvitationsByUser(UUID userId);
+    Page<EventInvitations> getInvitationsByUser(UUID userId, int page, int size);
 
     /**
-     * Accepts an invitation with the specified identifier.
-     *
-     * @param invitationId    The unique identifier of the invitation to accept.
-     * @param authentication   The authentication object of the currently logged-in user.
-     * @return ResponseEntity with a success message if the invitation is accepted, or an error message if it fails.
-     */
-    ResponseEntity<?> acceptInvitation(UUID invitationId, Authentication authentication);
-
-    /**
-     * Declines an invitation with the specified identifier.
-     *
-     * @param invitationId The unique identifier of the invitation to decline.
-     * @return ResponseEntity with a success message if the invitation is declined, or an error message if it fails.
-     */
-    ResponseEntity<?> declineInvitation(UUID invitationId);
-
-    /**
-     * Retrieves the status of an invitation by its identifier.
+     * Accepts an invitation for a specific user to join an event.
      *
      * @param invitationId The unique identifier of the invitation.
-     * @return ResponseEntity containing the invitation status if found, or an error message if it doesn't exist.
+     * @param authenticatedUserId       The unique identifier of the user accepting the invitation.
+     * @throws NotFoundException              If the invitation with the specified id is not found.
+     * @throws InsufficientPermissionException If the user does not have permission to accept the invitation.
+     * @throws UserIsParticipantException      If the user is already a participant of the associated event.
      */
-    ResponseEntity<?> getInvitationStatus(UUID invitationId);
+    void acceptInvitation(UUID invitationId, UUID authenticatedUserId);
 
     /**
-     * Deletes an invitation with the specified identifier.
+     * Declines an invitation, rejecting the associated event invitation.
      *
-     * @param invitationId The unique identifier of the invitation to delete.
-     * @return ResponseEntity with a success message if the invitation is deleted, or an error message if it fails.
+     * @param invitationId The unique identifier of the invitation to decline.
+     * @throws NotFoundException If the invitation with the specified id is not found.
      */
-    ResponseEntity<?> deleteInvitation(UUID invitationId);
+    void declineInvitation(UUID invitationId);
 
+    /**
+     * Retrieves the status of an invitation based on the associated event's current status.
+     *
+     * @param invitationId The unique identifier of the invitation to check.
+     * @return A string indicating the status of the invitation.
+     * @throws NotFoundException If the invitation with the specified id is not found.
+     */
+    String getInvitationStatus(UUID invitationId);
 
+    /**
+     * Deletes an invitation with the specified ID.
+     *
+     * @param invitationId The unique identifier of the invitation to be deleted.
+     * @throws NotFoundException If the invitation with the specified id is not found.
+     */
+    void deleteInvitation(UUID invitationId);
 }
