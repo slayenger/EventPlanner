@@ -13,13 +13,17 @@ import com.eventplanner.repositories.*;
 import com.eventplanner.services.api.EventsService;
 import com.eventplanner.services.api.ParticipantsService;
 import lombok.RequiredArgsConstructor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.tomcat.util.http.fileupload.FileUtils;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
-import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -42,12 +46,17 @@ public class EventsServiceImpl implements EventsService {
     private static final String UPLOAD_DIR = "C:/Users/sinya/IdeaProjects/EventPlannerApp/src/main/resources/static/event_images";
     private final EventsMapper eventsMapper;
     private final ParticipantsMapper participantsMapper;
+    private final PlatformTransactionManager transactionManager;
+    private static final Logger LOGGER = LogManager.getLogger();
 
 
     @Override
-    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void createNewEvent(EventsDTO eventsDTO, UUID organizerId) throws NotFoundException
     {
+        TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
+        TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
+        LOGGER.info("Start transaction");
+
         if (!usersRepository.existsById(organizerId))
         {
             throw new NotFoundException("User with id " + organizerId + " not found");
@@ -59,6 +68,8 @@ public class EventsServiceImpl implements EventsService {
 
         ParticipantDTO participantDTO = participantsMapper.toDTO(newEvent.getEventId(),organizerId);
         participantsService.addParticipantToEvent(participantDTO);
+
+        transactionManager.commit(transaction);
     }
 
     @Override
@@ -105,10 +116,13 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
-    @Transactional(isolation = Isolation.READ_COMMITTED)
     public Events updateEvent(UUID eventId, EventsDTO updatedEvent, UUID authenticatedUserId)
             throws NotFoundException, InsufficientPermissionException
     {
+        TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
+        TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
+        LOGGER.info("Start transaction");
+
         Events event = eventsRepository.getReferenceById(eventId);
         if (!event.getOrganizer().getUserId().equals(authenticatedUserId)) {
             throw new InsufficientPermissionException("You don't have the rights to delete this event");
@@ -117,25 +131,32 @@ public class EventsServiceImpl implements EventsService {
         {
             eventsMapper.update(updatedEvent, event);
             eventsRepository.save(event);
+            transactionManager.commit(transaction);
             return event;
         }
         else
         {
-           throw new NotFoundException("Event with id " + eventId + " not found");
+            transactionManager.rollback(transaction);
+            throw new NotFoundException("Event with id " + eventId + " not found");
         }
     }
 
     @Override
-    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void deleteEvent(UUID eventId, UUID authenticatedUserId)
             throws NotFoundException, InsufficientPermissionException {
+        TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
+        TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
+        LOGGER.info("Start transaction");
+
         if (!eventsRepository.existsById(eventId))
         {
+            transactionManager.rollback(transaction);
             throw new NotFoundException("Event with id " + eventId + " not found");
         }
 
         Events event = eventsRepository.getReferenceById(eventId);
         if (!event.getOrganizer().getUserId().equals(authenticatedUserId)) {
+            transactionManager.rollback(transaction);
             throw new InsufficientPermissionException("You don't have the rights to delete this event");
         }
 
@@ -151,10 +172,12 @@ public class EventsServiceImpl implements EventsService {
             }
             catch (FileNotFoundException err)
             {
+                transactionManager.rollback(transaction);
                 throw new NotFoundException("File not found, ", err);
             }
             catch (IOException e)
             {
+                transactionManager.rollback(transaction);
                 e.printStackTrace();
                 throw new RuntimeException("Error deleting event folder");
             }
@@ -164,6 +187,7 @@ public class EventsServiceImpl implements EventsService {
         participantsRepository.deleteAllByEvent_EventId(eventId);
         invitationsRepository.deleteAllByEvent_EventId(eventId);
         eventsRepository.deleteById(eventId);
-    }
 
+        transactionManager.commit(transaction);
+    }
 }

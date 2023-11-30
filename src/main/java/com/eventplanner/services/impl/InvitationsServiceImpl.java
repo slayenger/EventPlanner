@@ -18,14 +18,20 @@ import com.eventplanner.services.api.ParticipantsService;
 import com.eventplanner.util.HashingUtils;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 import java.sql.Timestamp;
 import java.util.Date;
@@ -39,89 +45,85 @@ import java.util.UUID;
  */
 @Service
 @RequiredArgsConstructor
-public class InvitationsServiceImpl implements InvitationsService
-{
+public class InvitationsServiceImpl implements InvitationsService {
     private final EventInvitationsRepository invitationsRepository;
     private final EventsRepository eventsRepository;
     private final UsersRepository usersRepository;
     private final ParticipantsService participantsService;
+    private final PlatformTransactionManager transactionManager;
+    private static final Logger LOGGER = LogManager.getLogger();
 
 
     @Override
-    @Transactional(isolation = Isolation.READ_COMMITTED)
-    public EventInvitations createInvitation(String link) throws NotParticipantException, InvalidLinkException
-    {
-            Map<String, UUID> linkData = parseInvitationLink(link);
-            UUID eventId = linkData.get("eventId");
-            UUID invitedUserId = linkData.get("invitedUserId");
-            UUID invitedByUserId = linkData.get("invitedByUserId");
+    public EventInvitations createInvitation(String link) throws NotParticipantException, InvalidLinkException {
+        TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
+        TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
+        LOGGER.info("Start transaction");
 
-            if (!participantsService.isUserParticipant(eventId,invitedByUserId))
-            {
-                throw new NotParticipantException("The invited user with id " + invitedByUserId
-                        + " is not participant in this event with id " + eventId);
-            }
+        Map<String, UUID> linkData = parseInvitationLink(link);
+        UUID eventId = linkData.get("eventId");
+        UUID invitedUserId = linkData.get("invitedUserId");
+        UUID invitedByUserId = linkData.get("invitedByUserId");
+        if (!participantsService.isUserParticipant(eventId, invitedByUserId)) {
+            transactionManager.rollback(transaction);
+            throw new NotParticipantException("The invited user with id " + invitedByUserId
+                    + " is not participant in this event with id " + eventId);
+        }
+        if (validateInvitationLink(eventId, invitedUserId, invitedByUserId)) {
+            EventInvitations eventInvitations = setInvitationData(eventId, invitedByUserId, invitedUserId, link);
+            invitationsRepository.save(eventInvitations);
 
-            if (validateInvitationLink(eventId, invitedUserId, invitedByUserId))
-            {
-                EventInvitations eventInvitations = setInvitationData(eventId, invitedByUserId, invitedUserId, link);
-                invitationsRepository.save(eventInvitations);
-                return eventInvitations;
-            }
-            else
-            {
-                throw new InvalidLinkException("Invalid link: " + link);
-            }
+            transactionManager.commit(transaction);
+            return eventInvitations;
+        } else {
+            transactionManager.rollback(transaction);
+            throw new InvalidLinkException("Invalid link: " + link);
+        }
     }
 
     @Override
-    public Page<EventInvitations> getInvitationsByEvent(UUID eventId, int page, int size) throws EmptyListException
-    {
+    public Page<EventInvitations> getInvitationsByEvent(UUID eventId, int page, int size) throws EmptyListException {
 
         Pageable pageable = PageRequest.of(page, size);
-        Page<EventInvitations> invitations = invitationsRepository.findAllByEvent_EventId(eventId,pageable);
-        if (invitations.isEmpty())
-        {
+        Page<EventInvitations> invitations = invitationsRepository.findAllByEvent_EventId(eventId, pageable);
+        if (invitations.isEmpty()) {
             throw new EmptyListException("There are no invitations for this event: " + eventId);
-        }
-        else
-        {
+        } else {
             return invitations;
         }
     }
 
     @Override
-    public Page<EventInvitations> getInvitationsByUser(UUID userId, int page, int size) throws EmptyListException
-    {
+    public Page<EventInvitations> getInvitationsByUser(UUID userId, int page, int size) throws EmptyListException {
         Pageable pageable = PageRequest.of(page, size);
         Page<EventInvitations> invitations = invitationsRepository.findAllByInvitedUser_UserId(userId, pageable);
-        if (invitations.isEmpty())
-        {
+        if (invitations.isEmpty()) {
             throw new EmptyListException("There are no invitations for this user: " + userId);
-        }
-        else
-        {
+        } else {
             return invitations;
         }
     }
 
     @Override
-    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void acceptInvitation(UUID invitationId, UUID authenticatedUserId)
             throws NotFoundException, InsufficientPermissionException, UserIsParticipantException
     {
-        if (!invitationsRepository.existsById(invitationId))
-        {
+        TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
+        TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
+        LOGGER.info("Start transaction");
+
+        if (!invitationsRepository.existsById(invitationId)) {
+            transactionManager.rollback(transaction);
             throw new NotFoundException("Invitation with id " + invitationId + " not found");
         }
         EventInvitations invitation = invitationsRepository.getReferenceById(invitationId);
 
-        if (!authenticatedUserId.equals(invitation.getInvitedUser().getUserId()))
-        {
+        if (!authenticatedUserId.equals(invitation.getInvitedUser().getUserId())) {
+            transactionManager.rollback(transaction);
             throw new InsufficientPermissionException("You do not have permission to perform this action");
         }
-        if (participantsService.isUserParticipant(invitation.getEvent().getEventId(), authenticatedUserId))
-        {
+        if (participantsService.isUserParticipant(invitation.getEvent().getEventId(), authenticatedUserId)) {
+            transactionManager.rollback(transaction);
             throw new UserIsParticipantException("User with id " + authenticatedUserId
                     + " is already a participant of the event with id " + invitation.getEvent().getEventId());
         }
@@ -130,44 +132,45 @@ public class InvitationsServiceImpl implements InvitationsService
 
         participantsService.addParticipantToEvent(requestDTO);
         invitationsRepository.delete(invitation);
+        transactionManager.commit(transaction);
     }
 
     @Override
-    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void declineInvitation(UUID invitationId) throws NotFoundException
     {
-        if (!invitationsRepository.existsById(invitationId))
-        {
+        TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
+        TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
+        LOGGER.info("Start transaction");
+
+        if (!invitationsRepository.existsById(invitationId)) {
+            transactionManager.rollback(transaction);
             throw new NotFoundException("Invitation with id " + invitationId + " not found");
         }
         invitationsRepository.deleteById(invitationId);
+
+        transactionManager.commit(transaction);
     }
 
     @Override
-    public String getInvitationStatus(UUID invitationId) throws NotFoundException
-    {
-        if (!invitationsRepository.existsById(invitationId))
-        {
+    public String getInvitationStatus(UUID invitationId) throws NotFoundException {
+        if (!invitationsRepository.existsById(invitationId)) {
             throw new NotFoundException("Invitation with id " + invitationId + " not found");
         }
 
         EventInvitations invitation = invitationsRepository.getReferenceById(invitationId);
         UUID eventId = invitation.getEvent().getEventId();
         Events event = eventsRepository.getReferenceById(eventId);
-        if (event.getDateTime().after(new Date()))
-        {
+        if (event.getDateTime().after(new Date())) {
             eventsRepository.deleteById(eventId);
             return "The event has already ended";
         }
 
-        return  "The invitation with id " + invitationId + " was neither accepted nor declined";
+        return "The invitation with id " + invitationId + " was neither accepted nor declined";
     }
 
     @Override
-    public void deleteInvitation(UUID invitationId)
-    {
-        if (!invitationsRepository.existsById(invitationId))
-        {
+    public void deleteInvitation(UUID invitationId) {
+        if (!invitationsRepository.existsById(invitationId)) {
             throw new NotFoundException("Invitation with id " + invitationId + " not found");
         }
         invitationsRepository.deleteById(invitationId);
@@ -179,15 +182,12 @@ public class InvitationsServiceImpl implements InvitationsService
      * @param eventId The unique identifier of the event.
      * @param userId  The unique identifier of the user.
      */
-    private void checkOfExistence(UUID eventId, UUID userId)
-    {
-        if (!eventsRepository.existsById(eventId))
-        {
+    private void checkOfExistence(UUID eventId, UUID userId) {
+        if (!eventsRepository.existsById(eventId)) {
             throw new EntityNotFoundException("Event with id " + eventId + " not found");
         }
 
-        if (!usersRepository.existsById(userId))
-        {
+        if (!usersRepository.existsById(userId)) {
             throw new EntityNotFoundException("User with id " + userId + " not found");
         }
     }
@@ -195,15 +195,14 @@ public class InvitationsServiceImpl implements InvitationsService
     /**
      * Sets all invitation fields
      *
-     * @param eventId The unique identifier of the event.
+     * @param eventId         The unique identifier of the event.
      * @param invitedByUserId The unique identifier of the user who invited.
      * @param invitedUserId   The unique identifier of the user who was invited.
-     * @param link The link where the data is encrypted.
+     * @param link            The link where the data is encrypted.
      * @return an object of the EventInvitations class.
      */
 
-    private EventInvitations setInvitationData(UUID eventId, UUID invitedByUserId,UUID invitedUserId, String link)
-    {
+    private EventInvitations setInvitationData(UUID eventId, UUID invitedByUserId, UUID invitedUserId, String link) {
         EventInvitations eventInvitations = new EventInvitations();
         eventInvitations.setEvent(eventsRepository.getReferenceById(eventId));
         eventInvitations.setInvitedByUser(usersRepository.getReferenceById(invitedByUserId));
@@ -247,8 +246,7 @@ public class InvitationsServiceImpl implements InvitationsService
      * @param invitedByUserId The unique identifier of the user who invited.
      * @return True if the link is valid; false otherwise.
      */
-    private boolean validateInvitationLink(UUID eventId, UUID invitedUserId, UUID invitedByUserId)
-    {
+    private boolean validateInvitationLink(UUID eventId, UUID invitedUserId, UUID invitedByUserId) {
         checkOfExistence(eventId, invitedUserId);
 
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();

@@ -15,12 +15,18 @@ import com.eventplanner.repositories.UsersRepository;
 import com.eventplanner.services.api.ParticipantsService;
 import com.eventplanner.util.HashingUtils;
 import lombok.RequiredArgsConstructor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 import java.util.List;
 import java.util.Optional;
@@ -37,13 +43,17 @@ public class ParticipantsServiceImpl implements ParticipantsService
     private final EventParticipantsRepository participantsRepository;
     private final UsersRepository usersRepository;
     private final EventsRepository eventsRepository;
-
+    private final PlatformTransactionManager transactionManager;
+    private static final Logger LOGGER = LogManager.getLogger();
 
     @Override
-    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void addParticipantToEvent(ParticipantDTO participantDTO)
             throws UserIsParticipantException, NotFoundException
     {
+        TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
+        TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
+        LOGGER.info("Start transaction");
+
         UUID eventId = participantDTO.getEventId();
         UUID userId = participantDTO.getUserId();
         if (isUserParticipant(eventId, userId))
@@ -60,6 +70,7 @@ public class ParticipantsServiceImpl implements ParticipantsService
         Optional<Users> user = usersRepository.findById(userId);
         if (user.isEmpty())
         {
+            transactionManager.rollback(transaction);
             throw new NotFoundException("User with id " + userId + " not found");
         }
 
@@ -68,6 +79,7 @@ public class ParticipantsServiceImpl implements ParticipantsService
         participants.setUser(user.get());
 
         participantsRepository.save(participants);
+        transactionManager.commit(transaction);
     }
 
     @Override
@@ -103,20 +115,25 @@ public class ParticipantsServiceImpl implements ParticipantsService
     }
 
     @Override
-    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void removeParticipantFromEvent(ParticipantDTO participantDTO) throws NotFoundException
     {
+        TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
+        TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
+        LOGGER.info("Start transaction");
+
         UUID eventId = participantDTO.getEventId();
         UUID userId = participantDTO.getUserId();
         EventParticipants participant = participantsRepository.
                 findByEvent_EventIdAndUser_UserId(eventId,userId).orElse(null);
         if (participant == null)
         {
+            transactionManager.rollback(transaction);
             throw new NotFoundException("Participant not found in event");
         }
         else
         {
             participantsRepository.delete(participant);
+            transactionManager.commit(transaction);
         }
     }
 
@@ -126,9 +143,12 @@ public class ParticipantsServiceImpl implements ParticipantsService
     }
 
     @Override
-    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void removeAllParticipantsFromEvent(UUID eventId)
     {
+        TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
+        TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
+        LOGGER.info("Start transaction");
+
         if (!eventsRepository.existsById(eventId))
         {
             throw new NotFoundException("Event with id " + eventId + " not found");
@@ -138,6 +158,7 @@ public class ParticipantsServiceImpl implements ParticipantsService
             List<EventParticipants> participants = participantsRepository
                     .findAllByEvent_EventId(eventId);
             participantsRepository.deleteAll(participants);
+            transactionManager.commit(transaction);
         }
     }
 

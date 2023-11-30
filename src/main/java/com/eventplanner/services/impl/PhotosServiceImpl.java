@@ -9,12 +9,18 @@ import com.eventplanner.repositories.EventPhotosRepository;
 import com.eventplanner.repositories.EventsRepository;
 import com.eventplanner.services.api.PhotosService;
 import lombok.RequiredArgsConstructor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
@@ -34,19 +40,27 @@ public class PhotosServiceImpl implements PhotosService
     private static final String UPLOAD_DIR = "C:/Users/sinya/IdeaProjects/EventPlannerApp/src/main/resources/static/event_images";
     private final EventPhotosRepository photosRepository;
     private final EventsRepository eventsRepository;
+    private final PlatformTransactionManager transactionManager;
+    private static final Logger LOGGER = LogManager.getLogger();
 
 
     @Override
-    @Transactional(isolation = Isolation.READ_COMMITTED)
-    public String uploadPhoto(UUID eventId, MultipartFile file, UUID authenticatedUserId) throws IOException {
+    public String uploadPhoto(UUID eventId, MultipartFile file, UUID authenticatedUserId) throws IOException
+    {
+        TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
+        TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
+        LOGGER.info("Start transaction");
+
         Events event = eventsRepository.getReferenceById(eventId);
         if (!event.getOrganizer().getUserId().equals(authenticatedUserId))
         {
+            transactionManager.rollback(transaction);
             throw new InsufficientPermissionException("You don't have the rights to upload this photo");
         }
 
         if (file.isEmpty())
         {
+            transactionManager.rollback(transaction);
             throw new IllegalArgumentException("Please select the file to download");
         }
 
@@ -57,6 +71,7 @@ public class PhotosServiceImpl implements PhotosService
             boolean dirCreated = eventDir.mkdirs(); // Creating an event folder if it does not exist
             if (!dirCreated)
             {
+                transactionManager.rollback(transaction);
                 throw new IOException("Failed to create event directory");
             }
         }
@@ -71,6 +86,7 @@ public class PhotosServiceImpl implements PhotosService
         eventPhoto.setPath(filePath);
         photosRepository.save(eventPhoto);
 
+        transactionManager.commit(transaction);
         return "Photo was uploaded to event with id " + eventId + "\n Path: " + filePath;
     }
 
@@ -102,11 +118,15 @@ public class PhotosServiceImpl implements PhotosService
     }
 
     @Override
-    @Transactional(isolation = Isolation.READ_COMMITTED)
     public void deletePhoto(UUID photoId, UUID authenticatedUserId)
     {
+        TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
+        TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
+        LOGGER.info("Start transaction");
+
         if (!photosRepository.existsById(photoId))
         {
+            transactionManager.rollback(transaction);
             throw new NotFoundException("Photo with id " + photoId + " not found");
         }
 
@@ -115,6 +135,7 @@ public class PhotosServiceImpl implements PhotosService
 
         if (!event.getOrganizer().getUserId().equals(authenticatedUserId))
         {
+            transactionManager.rollback(transaction);
             throw new InsufficientPermissionException("You don't have the rights to delete this photo");
         }
 
@@ -125,9 +146,11 @@ public class PhotosServiceImpl implements PhotosService
         }
         catch (IOException e)
         {
+            transactionManager.rollback(transaction);
             e.printStackTrace();
         }
 
         photosRepository.deleteById(photoId);
+        transactionManager.commit(transaction);
     }
 }

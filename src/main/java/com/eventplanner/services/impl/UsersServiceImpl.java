@@ -14,6 +14,8 @@ import com.eventplanner.repositories.EventsRepository;
 import com.eventplanner.repositories.UsersRepository;
 import com.eventplanner.services.api.UsersService;
 import lombok.RequiredArgsConstructor;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
@@ -24,8 +26,11 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 import java.util.Collections;
 import java.util.List;
@@ -44,84 +49,69 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
     private final EventParticipantsRepository participantsRepository;
     private final EventsRepository eventsRepository;
     private final UsersMapper usersMapper;
+    private final PlatformTransactionManager transactionManager;
+    private static final Logger LOGGER = LogManager.getLogger();
 
     @Override
-    public Page<Users> getAllUsers(int page, int size) throws EmptyListException
-    {
+    public Page<Users> getAllUsers(int page, int size) throws EmptyListException {
         Pageable pageable = PageRequest.of(page, size);
         Page<Users> users = usersRepository.findAll(pageable);
 
-        if (users.isEmpty())
-        {
+        if (users.isEmpty()) {
             throw new EmptyListException("At the moment there is no users");
-        }
-        else
-        {
+        } else {
             return users;
         }
     }
 
     @Override
-    @Transactional(isolation = Isolation.READ_COMMITTED)
-    public Users registerUser(RegistrationUserDTO registrationUserDTO)
-    {
+    public Users registerUser(RegistrationUserDTO registrationUserDTO) {
+        TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
+        TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
+        LOGGER.info("Start transaction");
         Users user = new Users();
         user.setUsername(registrationUserDTO.getUsername());
         user.setEmail(registrationUserDTO.getEmail());
         user.setPassword(passwordEncoder.encode(registrationUserDTO.getPassword()));
         usersRepository.save(user);
-        return usersRepository.save(user);
+        transactionManager.commit(transaction);
+        return user;
     }
 
     @Override
-    public UserDTO getUserById(UUID userId) throws NotFoundException
-    {
-       if (usersRepository.existsById(userId))
-       {
-           Users user = usersRepository.getReferenceById(userId);
-           return usersMapper.toDTO(user);
-       }
-       else
-       {
-           throw new NotFoundException("User with id: " + userId + " not found");
-       }
+    public UserDTO getUserById(UUID userId) throws NotFoundException {
+        if (usersRepository.existsById(userId)) {
+            Users user = usersRepository.getReferenceById(userId);
+            return usersMapper.toDTO(user);
+        } else {
+            throw new NotFoundException("User with id: " + userId + " not found");
+        }
     }
 
     @Override
-    public UserDTO getUserByEmail(String email) throws NotFoundException
-    {
+    public UserDTO getUserByEmail(String email) throws NotFoundException {
 
-        if(usersRepository.existsByEmail(email))
-        {
+        if (usersRepository.existsByEmail(email)) {
             Optional<Users> user = usersRepository.findByEmail(email);
             return usersMapper.toDTO(user.get());
-        }
-        else
-        {
+        } else {
             throw new NotFoundException("User with email: " + email + " not found");
         }
     }
 
     @Override
-    @Transactional(isolation = Isolation.READ_COMMITTED)
-    public UserDTO updateUser(UUID userId, UserDTO updatedUser) throws NotFoundException
-    {
+    public UserDTO updateUser(UUID userId, UserDTO updatedUser) throws NotFoundException {
+        TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
+        TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
+        Users user = usersRepository.getReferenceById(userId);
+        usersRepository.save(usersMapper.update(updatedUser, user));
+        transactionManager.commit(transaction);
+        return usersMapper.toDTO(user);
 
-        if (usersRepository.existsById(userId))
-        {
-            Users user = usersRepository.getReferenceById(userId);
-            usersRepository.save(usersMapper.update(updatedUser, user));
-            return usersMapper.toDTO(user);
-        }
-        else
-        {
-            throw new NotFoundException("User with id " + userId + " not found");
-        }
     }
 
     @Override
-    public PageImpl<Events> getUserEvents(UUID userId, int page, int size)
-    {
+    public PageImpl<Events> getUserEvents(UUID userId, int page, int size) {
         if (!usersRepository.existsById(userId)) {
             throw new NotFoundException("User with id " + userId + " not found");
         }
@@ -138,12 +128,11 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
     }
 
     @Override
-    @Transactional(isolation = Isolation.READ_COMMITTED)
-    public void deleteUser(UUID userId)
-    {
-
-        if (!usersRepository.existsById(userId))
-        {
+    public void deleteUser(UUID userId) {
+        TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
+        TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
+        LOGGER.info("Start transaction");
+        if (!usersRepository.existsById(userId)) {
             throw new NotFoundException("User with id " + userId + " not found");
         }
 
@@ -151,6 +140,7 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
         participantsRepository.deleteAll(participants);
 
         usersRepository.deleteById(userId);
+        transactionManager.commit(transaction);
     }
 
     @Override
@@ -167,12 +157,12 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
      */
     @Override
     @Transactional
-    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException
-    {
-        Users users  = usersRepository.findByUsername(username).orElseThrow(
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        Users users = usersRepository.findByUsername(username).orElseThrow(
                 () -> new UsernameNotFoundException(
                         String.format("User  '%s' not found", username)
                 )
+                //TODO redirect to registerUser
         );
 
         return new CustomUserDetailsDTO(
@@ -180,6 +170,6 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
                 users.getUsername(),
                 users.getPassword(),
                 Collections.singleton(new SimpleGrantedAuthority("ROLE_USER"))
-                );
+        );
     }
 }

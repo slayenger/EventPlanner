@@ -2,7 +2,9 @@ package com.eventplanner.mappers;
 
 import com.eventplanner.dtos.UserDTO;
 import com.eventplanner.entities.Users;
+import org.springframework.stereotype.Component;
 
+@Component
 public class UsersMapper {
 
     public UserDTO toDTO(Users user)
