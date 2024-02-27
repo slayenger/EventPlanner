@@ -28,10 +28,6 @@ public class EventInvitations {
     @JoinColumn(name = "invited_by_user_id")
     private Users invitedByUser;
 
-    @ManyToOne
-    @JoinColumn(name = "invited_user_id")
-    private Users invitedUser;
-
     private String invitationLink;
 
     private Timestamp createdAt;

@@ -1,10 +1,10 @@
 package com.eventplanner.controllers;
 
-
 import com.eventplanner.dtos.CustomUserDetailsDTO;
 import com.eventplanner.dtos.EventParticipantsDTO;
-import com.eventplanner.dtos.ParticipantDTO;
+import com.eventplanner.dtos.ParticipantRequestDTO;
 import com.eventplanner.exceptions.EmptyListException;
+import com.eventplanner.exceptions.InsufficientPermissionException;
 import com.eventplanner.exceptions.NotFoundException;
 import com.eventplanner.exceptions.participants.NotParticipantException;
 import com.eventplanner.exceptions.participants.UserIsParticipantException;
@@ -46,13 +46,12 @@ public class ParticipantsController {
         }
     }
 
-
-    @PostMapping
-    public ResponseEntity<?> addParticipantToEvent(@RequestBody ParticipantDTO participantDTO)
+    @PostMapping("/{eventId}")
+    public ResponseEntity<?> addParticipantToEvent(@PathVariable UUID eventId, @AuthenticationPrincipal CustomUserDetailsDTO userDetails)
     {
         try
         {
-            participantsService.addParticipantToEvent(participantDTO);
+            participantsService.addParticipantToEvent(eventId, userDetails.getUserId());
             return ResponseEntity.status(HttpStatus.OK).body("The participant was successfully added");
         }
         catch (UserIsParticipantException err)
@@ -66,27 +65,17 @@ public class ParticipantsController {
     }
 
     @DeleteMapping
-    public ResponseEntity<?> removeParticipantFromEvent(@RequestBody ParticipantDTO participantDTO)
+    public ResponseEntity<?> removeParticipantFromEvent(@RequestBody ParticipantRequestDTO participantRequestDTO,
+                                                        @AuthenticationPrincipal CustomUserDetailsDTO userDetails)
     {
         try
         {
-            participantsService.removeParticipantFromEvent(participantDTO);
+            participantsService.removeParticipantFromEvent(participantRequestDTO, userDetails.getUserId());
             return ResponseEntity.status(HttpStatus.OK).body("The participant was successfully deleted");
         }
-        catch (NotFoundException err)
+        catch (InsufficientPermissionException err)
         {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err.getMessage());
-        }
-    }
-
-    @DeleteMapping("/{eventId}")
-    public ResponseEntity<?> removeAllParticipantsFromEvent(@PathVariable UUID eventId)
-    {
-        try
-        {
-            participantsService.removeAllParticipantsFromEvent(eventId);
-            return ResponseEntity.status(HttpStatus.OK)
-                    .body("All participants of the event with an id have been successfully deleted");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(err.getMessage());
         }
         catch (NotFoundException err)
         {
@@ -94,14 +83,14 @@ public class ParticipantsController {
         }
     }
 
-    @GetMapping("/generate_link")
-    public ResponseEntity<?> generateInvitationLink(@RequestBody ParticipantDTO requestDTO,
+    @GetMapping("/generate_link/{eventId}")
+    public ResponseEntity<?> generateInvitationLink(@PathVariable UUID eventId,
                                                     @AuthenticationPrincipal CustomUserDetailsDTO userDetails)
     {
         try
         {
             UUID invitedByUserId = userDetails.getUserId();
-            String link = participantsService.generateInvitationLink(requestDTO, invitedByUserId);
+            String link = participantsService.generateInvitationLink(eventId, invitedByUserId);
             return ResponseEntity.status(HttpStatus.OK).body(link);
         }
         catch(NotParticipantException err)
@@ -109,5 +98,4 @@ public class ParticipantsController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(err.getMessage());
         }
     }
-
 }

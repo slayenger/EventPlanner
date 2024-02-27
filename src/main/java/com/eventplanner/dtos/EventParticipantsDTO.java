@@ -13,7 +13,8 @@ public class EventParticipantsDTO {
 
     private UUID participantId;
     private UUID eventId;
-    private String participantName;
+    private String participantFirstname;
+    private String participantLastname;
 
 
 }

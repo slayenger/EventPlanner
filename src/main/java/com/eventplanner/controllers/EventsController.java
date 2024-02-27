@@ -1,11 +1,12 @@
 package com.eventplanner.controllers;
 
 import com.eventplanner.dtos.CustomUserDetailsDTO;
-import com.eventplanner.dtos.EventsDTO;
-import com.eventplanner.entities.Events;
+import com.eventplanner.dtos.EventsRequestDTO;
+import com.eventplanner.dtos.EventsResponseDTO;
 import com.eventplanner.exceptions.EmptyListException;
 import com.eventplanner.exceptions.InsufficientPermissionException;
 import com.eventplanner.exceptions.NotFoundException;
+import com.eventplanner.exceptions.ParseException;
 import com.eventplanner.services.api.EventsService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -29,28 +30,32 @@ public class EventsController {
     {
         try
         {
-            Page<Events> events = eventsService.getAllEvents(page, size);
+            Page<EventsResponseDTO> events = eventsService.getAllEvents(page, size);
             return ResponseEntity.ok().body(events);
         }
         catch (EmptyListException e)
         {
-            return ResponseEntity.status(HttpStatus.NO_CONTENT).body(e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(e.getMessage());
         }
     }
 
     @PostMapping
-    public ResponseEntity<?> createNewEvent(@RequestBody EventsDTO eventsDTO,
+    public ResponseEntity<?> createNewEvent(@RequestBody EventsRequestDTO eventsRequestDTO,
                                             @AuthenticationPrincipal CustomUserDetailsDTO userDetails)
     {
         try
         {
-            eventsService.createNewEvent(eventsDTO, userDetails.getUserId());
+            eventsService.createNewEvent(eventsRequestDTO, userDetails.getUserId());
             return ResponseEntity.ok("Event created successfully");
         }
         catch (NotFoundException e)
         {
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body("User not found");
+        }
+        catch (ParseException err)
+        {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err.getMessage());
         }
     }
 
@@ -59,7 +64,8 @@ public class EventsController {
     {
         try
         {
-            Events event = eventsService.getEventById(eventId);
+
+            EventsResponseDTO event = eventsService.getEventById(eventId);
             return ResponseEntity.status(HttpStatus.OK).body(event);
         }
         catch (Exception e)
@@ -72,13 +78,14 @@ public class EventsController {
 
     @PutMapping("/{eventId}")
     public ResponseEntity<?> updateEvent(@PathVariable UUID eventId,
-                                         @RequestBody EventsDTO updatedEvent,
+                                         @RequestBody EventsRequestDTO updatedEvent,
                                          @AuthenticationPrincipal CustomUserDetailsDTO userDetails)
     {
         try
         {
             UUID authenticatedUserId = userDetails.getUserId();
-            return ResponseEntity.status(HttpStatus.OK).body(eventsService.updateEvent(eventId,updatedEvent, authenticatedUserId));
+            eventsService.updateEvent(eventId,updatedEvent, authenticatedUserId);
+            return ResponseEntity.status(HttpStatus.OK).body("Success");
         }
         catch (InsufficientPermissionException err)
         {
@@ -86,6 +93,10 @@ public class EventsController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(err.getMessage());
         }
         catch (NotFoundException err)
+        {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err.getMessage());
+        }
+        catch (ParseException err)
         {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err.getMessage());
         }
@@ -97,7 +108,7 @@ public class EventsController {
     {
         try
         {
-            Events event = eventsService.getEventByTitle(title);
+            EventsResponseDTO event = eventsService.getEventByTitle(title);
             return ResponseEntity.status(HttpStatus.OK).body(event);
         }
         catch (NotFoundException err)

@@ -1,9 +1,10 @@
 package com.eventplanner.services.api;
 
-import com.eventplanner.dtos.EventsDTO;
-import com.eventplanner.entities.Events;
+import com.eventplanner.dtos.EventsRequestDTO;
+import com.eventplanner.dtos.EventsResponseDTO;
 import com.eventplanner.exceptions.EmptyListException;
 import com.eventplanner.exceptions.NotFoundException;
+import com.eventplanner.exceptions.ParseException;
 import org.springframework.data.domain.Page;
 
 import java.util.UUID;
@@ -14,13 +15,13 @@ import java.util.UUID;
 public interface EventsService {
 
     /**
-     * Creates a new event based on the provided {@link EventsDTO} and organizer ID.
+     * Creates a new event based on the provided {@link EventsRequestDTO} and organizer ID.
      *
-     * @param eventsDTO   The DTO containing event details.
+     * @param eventsRequestDTO   The DTO containing event details.
      * @param organizerId The ID of the organizer user.
      * @throws NotFoundException If the organizer user with the given ID is not found.
      */
-    void createNewEvent(EventsDTO eventsDTO, UUID organizerId);
+    void createNewEvent(EventsRequestDTO eventsRequestDTO, UUID organizerId) throws ParseException;
 
     /**
      * Retrieves a paginated list of all events.
@@ -30,7 +31,7 @@ public interface EventsService {
      * @return A {@link Page} containing events.
      * @throws EmptyListException If there are no events available.
      */
-    Page<Events> getAllEvents(int page, int size);
+    Page<EventsResponseDTO> getAllEvents(int page, int size);
 
     /**
      * Retrieves an event by its title.
@@ -39,7 +40,7 @@ public interface EventsService {
      * @return The event with the specified title.
      * @throws NotFoundException If no event is found with the given title.
      */
-    Events getEventByTitle(String title);
+    EventsResponseDTO getEventByTitle(String title);
 
     /**
      * Retrieves an event by its unique identifier.
@@ -48,7 +49,8 @@ public interface EventsService {
      * @return The event with the specified identifier.
      * @throws NotFoundException If no event is found with the given identifier.
      */
-    Events getEventById(UUID eventId);
+
+    EventsResponseDTO getEventById(UUID eventId);
 
     /**
      * Updates an existing event with the provided data.
@@ -58,7 +60,7 @@ public interface EventsService {
      * @return The updated event.
      * @throws NotFoundException If no event is found with the given identifier.
      */
-    Events updateEvent(UUID eventId, EventsDTO updatedEvent, UUID authenticatedUserId);
+    void updateEvent(UUID eventId, EventsRequestDTO updatedEvent, UUID authenticatedUserId) throws com.eventplanner.exceptions.ParseException;
 
     /**
      * Deletes an event along with associated data.

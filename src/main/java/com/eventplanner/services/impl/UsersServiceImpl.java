@@ -3,12 +3,16 @@ package com.eventplanner.services.impl;
 import com.eventplanner.dtos.CustomUserDetailsDTO;
 import com.eventplanner.dtos.RegistrationUserDTO;
 import com.eventplanner.dtos.UserDTO;
+import com.eventplanner.entities.EmailConfirmation;
 import com.eventplanner.entities.EventParticipants;
 import com.eventplanner.entities.Events;
 import com.eventplanner.entities.Users;
 import com.eventplanner.exceptions.EmptyListException;
 import com.eventplanner.exceptions.NotFoundException;
+import com.eventplanner.exceptions.PasswordMismatchException;
+import com.eventplanner.exceptions.SamePasswordException;
 import com.eventplanner.mappers.UsersMapper;
+import com.eventplanner.repositories.EmailConfirmationRepository;
 import com.eventplanner.repositories.EventParticipantsRepository;
 import com.eventplanner.repositories.EventsRepository;
 import com.eventplanner.repositories.UsersRepository;
@@ -42,16 +46,19 @@ import java.util.UUID;
  */
 @Service
 @RequiredArgsConstructor
+//TODO добавить метод смены пароля
 public class UsersServiceImpl implements UsersService, UserDetailsService {
 
     private final UsersRepository usersRepository;
     private final PasswordEncoder passwordEncoder;
     private final EventParticipantsRepository participantsRepository;
     private final EventsRepository eventsRepository;
+    private final EmailConfirmationRepository emailConfirmationRepository;
     private final UsersMapper usersMapper;
     private final PlatformTransactionManager transactionManager;
     private static final Logger LOGGER = LogManager.getLogger();
 
+    //TODO должны возвращаться дто а не сущность
     @Override
     public Page<Users> getAllUsers(int page, int size) throws EmptyListException {
         Pageable pageable = PageRequest.of(page, size);
@@ -66,18 +73,34 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
 
     @Override
     public Users registerUser(RegistrationUserDTO registrationUserDTO) {
-        TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
+        /*TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
         TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
-        LOGGER.info("Start transaction");
+        LOGGER.info("Start transaction");*/
         Users user = new Users();
         user.setUsername(registrationUserDTO.getUsername());
         user.setEmail(registrationUserDTO.getEmail());
         user.setPassword(passwordEncoder.encode(registrationUserDTO.getPassword()));
         usersRepository.save(user);
-        transactionManager.commit(transaction);
+        //transactionManager.commit(transaction);
         return user;
     }
 
+    @Override
+    public void changePassword (UUID userId, String currentPassword, String newPassword)
+    {
+        Users user = usersRepository.getReferenceById(userId);
+
+        if (!passwordEncoder.matches(currentPassword, user.getPassword()))
+        {
+            throw new PasswordMismatchException("Current password is incorrect");
+        }
+        if (passwordEncoder.matches(currentPassword,newPassword))
+        {
+            throw new SamePasswordException("The new password must be different from the current password. Please choose a different password");
+        }
+        user.setPassword(passwordEncoder.encode(newPassword));
+        usersRepository.save(user);
+    }
     @Override
     public UserDTO getUserById(UUID userId) throws NotFoundException {
         if (usersRepository.existsById(userId)) {
@@ -127,6 +150,8 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
         return new PageImpl<>(events, pageable, participantsPage.getTotalElements());
     }
 
+    //TODO при удалении пользователя токен должен удаляться
+    //TODO пользователя может удалить кто угодно
     @Override
     public void deleteUser(UUID userId) {
         TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
@@ -138,6 +163,10 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
 
         List<EventParticipants> participants = participantsRepository.findAllByUser_UserId(userId);
         participantsRepository.deleteAll(participants);
+
+        EmailConfirmation emailConfirmation = emailConfirmationRepository.findByUser_UserId(userId);
+        if (emailConfirmation != null)
+        emailConfirmationRepository.delete(emailConfirmation);
 
         usersRepository.deleteById(userId);
         transactionManager.commit(transaction);

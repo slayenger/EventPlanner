@@ -1,12 +1,14 @@
 package com.eventplanner.services.impl;
 
-import com.eventplanner.dtos.EventsDTO;
-import com.eventplanner.dtos.ParticipantDTO;
+import com.eventplanner.dtos.EventsRequestDTO;
+import com.eventplanner.dtos.EventsResponseDTO;
+import com.eventplanner.dtos.ParticipantRequestDTO;
 import com.eventplanner.entities.Events;
 import com.eventplanner.entities.Users;
 import com.eventplanner.exceptions.EmptyListException;
 import com.eventplanner.exceptions.InsufficientPermissionException;
 import com.eventplanner.exceptions.NotFoundException;
+import com.eventplanner.exceptions.ParseException;
 import com.eventplanner.mappers.EventsMapper;
 import com.eventplanner.mappers.ParticipantsMapper;
 import com.eventplanner.repositories.*;
@@ -17,6 +19,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tomcat.util.http.fileupload.FileUtils;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -28,6 +31,8 @@ import org.springframework.transaction.support.DefaultTransactionDefinition;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 /**
@@ -35,6 +40,7 @@ import java.util.UUID;
  */
 @Service
 @RequiredArgsConstructor
+//TODO добавить валидацию на недопустимые символы в названии, описании и тд...
 public class EventsServiceImpl implements EventsService {
 
     private final EventsRepository eventsRepository;
@@ -45,14 +51,12 @@ public class EventsServiceImpl implements EventsService {
     private final EventPhotosRepository photosRepository;
     private static final String UPLOAD_DIR = "C:/Users/sinya/IdeaProjects/EventPlannerApp/src/main/resources/static/event_images";
     private final EventsMapper eventsMapper;
-    private final ParticipantsMapper participantsMapper;
     private final PlatformTransactionManager transactionManager;
     private static final Logger LOGGER = LogManager.getLogger();
 
 
     @Override
-    public void createNewEvent(EventsDTO eventsDTO, UUID organizerId) throws NotFoundException
-    {
+    public void createNewEvent(EventsRequestDTO eventsRequestDTO, UUID organizerId) throws NotFoundException, ParseException {
         TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
         TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
         LOGGER.info("Start transaction");
@@ -61,53 +65,59 @@ public class EventsServiceImpl implements EventsService {
         {
             throw new NotFoundException("User with id " + organizerId + " not found");
         }
-        Events newEvent = eventsMapper.toEvent(eventsDTO);
+        Events newEvent = eventsMapper.toEvent(eventsRequestDTO);
         Users organizer = usersRepository.getReferenceById(organizerId);
         newEvent.setOrganizer(organizer);
         eventsRepository.save(newEvent);
 
-        ParticipantDTO participantDTO = participantsMapper.toDTO(newEvent.getEventId(),organizerId);
-        participantsService.addParticipantToEvent(participantDTO);
+        participantsService.addParticipantToEvent(newEvent.getEventId(),organizerId);
 
         transactionManager.commit(transaction);
     }
 
     @Override
-    public Page<Events> getAllEvents(int page, int size) throws EmptyListException
+    public Page<EventsResponseDTO> getAllEvents(int page, int size) throws EmptyListException
     {
         Pageable pageable = PageRequest.of(page, size);
-        Page<Events> events = eventsRepository.findAll(pageable);
+        List<Events> events = eventsRepository.findAll();
+        List<EventsResponseDTO> eventsDTO = new ArrayList<>();
+        for (Events event: events)
+        {
+            eventsDTO.add(eventsMapper.toDTO(event));
+        }
+        Page<EventsResponseDTO> eventsPage = new PageImpl<>(eventsDTO,pageable,size);
+
         if (events.isEmpty())
         {
             throw new EmptyListException("At the moment there is no event");
         }
         else
         {
-            return events;
+            return eventsPage;
         }
     }
 
     @Override
-    public Events getEventByTitle(String title) throws NotFoundException
+    public EventsResponseDTO getEventByTitle(String title) throws NotFoundException
     {
         Events event = eventsRepository.findByTitle(title).orElse(null);
-
         if (event == null)
         {
             throw new NotFoundException("Event with title " + title + " not found");
         }
         else
         {
-            return event;
+            return eventsMapper.toDTO(event);
         }
     }
 
     @Override
-    public Events getEventById(UUID eventId) throws NotFoundException
+    public EventsResponseDTO getEventById(UUID eventId) throws NotFoundException
     {
         if (eventsRepository.existsById(eventId))
         {
-            return eventsRepository.getReferenceById(eventId);
+            Events event = eventsRepository.getReferenceById(eventId);
+            return eventsMapper.toDTO(event);
         }
         else
         {
@@ -116,9 +126,8 @@ public class EventsServiceImpl implements EventsService {
     }
 
     @Override
-    public Events updateEvent(UUID eventId, EventsDTO updatedEvent, UUID authenticatedUserId)
-            throws NotFoundException, InsufficientPermissionException
-    {
+    public void updateEvent(UUID eventId, EventsRequestDTO updatedEvent, UUID authenticatedUserId)
+            throws NotFoundException, InsufficientPermissionException, ParseException {
         TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
         TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
         LOGGER.info("Start transaction");
@@ -132,7 +141,6 @@ public class EventsServiceImpl implements EventsService {
             eventsMapper.update(updatedEvent, event);
             eventsRepository.save(event);
             transactionManager.commit(transaction);
-            return event;
         }
         else
         {

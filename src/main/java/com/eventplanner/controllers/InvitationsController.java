@@ -2,12 +2,15 @@ package com.eventplanner.controllers;
 
 
 import com.eventplanner.dtos.CustomUserDetailsDTO;
+import com.eventplanner.dtos.EventsResponseDTO;
 import com.eventplanner.entities.EventInvitations;
+import com.eventplanner.entities.InvitationLink;
 import com.eventplanner.exceptions.*;
 import com.eventplanner.exceptions.participants.InvalidLinkException;
 import com.eventplanner.exceptions.participants.NotParticipantException;
 import com.eventplanner.exceptions.participants.UserIsParticipantException;
 import com.eventplanner.services.api.InvitationsService;
+import com.eventplanner.services.impl.InvitationLinkService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.http.HttpStatus;
@@ -23,6 +26,7 @@ import java.util.UUID;
 public class InvitationsController
 {
     private final InvitationsService invitationsService;
+    private final InvitationLinkService invitationLinkService;
 
     @PostMapping("/create_invitation/{link}")
     public ResponseEntity<?> createInvitation(@PathVariable String link)
@@ -57,10 +61,23 @@ public class InvitationsController
             System.out.println("Error:" + err.getMessage());
             return ResponseEntity.status(HttpStatus.NO_CONTENT).body("There are no invitations for this event");
         }
-
     }
 
-    @GetMapping("/user/{userId}")
+    @GetMapping("/{shortIdentifier}")
+    public ResponseEntity<?> getEventByInvitationLink(@PathVariable String shortIdentifier)
+    {
+        try
+        {
+            EventsResponseDTO response = invitationLinkService.findByShortIdentifier(shortIdentifier);
+            return ResponseEntity.status(HttpStatus.OK).body(response);
+        }
+        catch (NotFoundException err)
+        {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err.getMessage());
+        }
+    }
+
+/*    @GetMapping("/user/{userId}")
     public ResponseEntity<?> getInvitationsByUser(@PathVariable UUID userId,
                                                   @RequestParam(defaultValue = "0") int page,
                                                   @RequestParam(defaultValue = "10") int size)
@@ -74,10 +91,10 @@ public class InvitationsController
         {
             return ResponseEntity.status(HttpStatus.NO_CONTENT).body(err.getMessage());
         }
-    }
+    }*/
 
 
-    @PostMapping("/accept/{invitationId}")
+/*    @PostMapping("/accept/{invitationId}")
     public ResponseEntity<?> acceptInvitation(@PathVariable UUID invitationId,
                                               @AuthenticationPrincipal CustomUserDetailsDTO userDetails)
     {
@@ -95,9 +112,9 @@ public class InvitationsController
         {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(err.getMessage());
         }
-    }
+    }*/
 
-    @DeleteMapping("/decline/{invitationId}")
+/*    @DeleteMapping("/decline/{invitationId}")
     public ResponseEntity<?> declineInvitation(@PathVariable UUID invitationId)
     {
         try
@@ -109,7 +126,7 @@ public class InvitationsController
         {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err.getMessage());
         }
-    }
+    }*/
 
     @GetMapping("/status/{invitationId}")
     public ResponseEntity<?> getInvitationStatus(@PathVariable UUID invitationId)

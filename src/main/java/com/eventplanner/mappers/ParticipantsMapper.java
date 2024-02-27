@@ -1,20 +1,21 @@
 package com.eventplanner.mappers;
 
-import com.eventplanner.dtos.ParticipantDTO;
+import com.eventplanner.dtos.ParticipantRequestDTO;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
 
+//TODO не делать этот класс бином(?)
 @Component
 public class ParticipantsMapper {
 
-   public ParticipantDTO toDTO(UUID eventId, UUID participantId)
+   public ParticipantRequestDTO toDTO(UUID eventId, UUID participantId)
    {
-       ParticipantDTO participantDTO = new ParticipantDTO();
-       participantDTO.setEventId(eventId);
-       participantDTO.setUserId(participantId);
+       ParticipantRequestDTO participantRequestDTO = new ParticipantRequestDTO();
+       participantRequestDTO.setEventId(eventId);
+       participantRequestDTO.setParticipantId(participantId);
 
-       return participantDTO;
+       return participantRequestDTO;
    }
 
 }

@@ -1,10 +1,9 @@
 package com.eventplanner.util;
 
 import java.security.Key;
-import java.util.Base64;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.security.SecureRandom;
+import java.util.*;
+import java.util.stream.Collectors;
 import javax.crypto.Cipher;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -15,39 +14,17 @@ import org.springframework.stereotype.Component;
 @Component
 public class HashingUtils {
 
+    private static final String CHARACTERS = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
     private static final String secret = "984hg493gh0439rt";
+    private static final int SHORT_IDENTIFIER_LENGTH = 8;
 
-    public static String encryptData(String data) {
-        try {
-            Key secretKey = new SecretKeySpec(secret.getBytes(), "AES");
-            Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
-            cipher.init(Cipher.ENCRYPT_MODE, secretKey);
-            byte[] encryptedData = cipher.doFinal(data.getBytes("UTF-8"));
-            return Base64.getUrlEncoder().encodeToString(encryptedData);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
+    private static final Random RANDOM = new SecureRandom();
 
-    public static String decryptData(String encryptedData) {
-        try {
-            Key secretKey = new SecretKeySpec(secret.getBytes(), "AES");
-            Cipher cipher = Cipher.getInstance("AES/ECB/PKCS5Padding");
-            cipher.init(Cipher.DECRYPT_MODE, secretKey);
-            byte[] decryptedData = cipher.doFinal(Base64.getUrlDecoder().decode(encryptedData));
-            return new String(decryptedData, "UTF-8");
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw new IllegalArgumentException("error decrypting");
-        }
-    }
-
-    public static String generateInvitationLink(UUID eventId, UUID invitedUserId, UUID invitedByUserId)
+    public static String generateInvitationLink(UUID eventId, UUID invitedByUserId)
     {
-        String data = eventId.toString() + ";" + invitedUserId.toString() + ";" + invitedByUserId.toString();
-        String hash = encryptData(data);
-        return hash;
+        return eventId.toString() + ";"  + ";" + invitedByUserId.toString();
     }
+
+
 
 }

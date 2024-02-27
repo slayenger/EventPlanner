@@ -1,10 +1,13 @@
 package com.eventplanner.controllers;
 
+import com.eventplanner.dtos.ChangePasswordRequest;
 import com.eventplanner.dtos.CustomUserDetailsDTO;
 import com.eventplanner.dtos.UserDTO;
 import com.eventplanner.entities.Events;
 import com.eventplanner.exceptions.EmptyListException;
 import com.eventplanner.exceptions.NotFoundException;
+import com.eventplanner.exceptions.PasswordMismatchException;
+import com.eventplanner.exceptions.SamePasswordException;
 import com.eventplanner.services.api.UsersService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.PageImpl;
@@ -45,7 +48,7 @@ public class UsersController {
         }
         catch (NotFoundException err)
         {
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(err.getMessage());
         }
     }
 
@@ -116,6 +119,22 @@ public class UsersController {
             return ResponseEntity.status(HttpStatus.OK).body(eventsPage);
         }
         catch (NotFoundException err)
+        {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err.getMessage());
+        }
+    }
+
+    @PatchMapping("/change-password")
+    public ResponseEntity<?> changePassword (@RequestBody ChangePasswordRequest request,
+                                             @AuthenticationPrincipal CustomUserDetailsDTO userDetails)
+    {
+        try
+        {
+            usersService.changePassword(userDetails.getUserId(),
+                    request.getCurrentPassword(), request.getNewPassword());
+            return ResponseEntity.status(HttpStatus.OK).body("Password changed successfully");
+        }
+        catch (PasswordMismatchException | SamePasswordException err)
         {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err.getMessage());
         }

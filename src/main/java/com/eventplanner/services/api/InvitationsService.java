@@ -42,7 +42,7 @@ public interface InvitationsService {
      * @return A Page object containing the list of EventInvitations for the specified user.
      * @throws EmptyListException If there are no invitations for the specified user.
      */
-    Page<EventInvitations> getInvitationsByUser(UUID userId, int page, int size);
+    //Page<EventInvitations> getInvitationsByUser(UUID userId, int page, int size);
 
     /**
      * Accepts an invitation for a specific user to join an event.
@@ -53,7 +53,7 @@ public interface InvitationsService {
      * @throws InsufficientPermissionException If the user does not have permission to accept the invitation.
      * @throws UserIsParticipantException      If the user is already a participant of the associated event.
      */
-    void acceptInvitation(UUID invitationId, UUID authenticatedUserId);
+    //void acceptInvitation(UUID invitationId, UUID authenticatedUserId);
 
     /**
      * Declines an invitation, rejecting the associated event invitation.
@@ -61,7 +61,7 @@ public interface InvitationsService {
      * @param invitationId The unique identifier of the invitation to decline.
      * @throws NotFoundException If the invitation with the specified id is not found.
      */
-    void declineInvitation(UUID invitationId);
+    //void declineInvitation(UUID invitationId);
 
     /**
      * Retrieves the status of an invitation based on the associated event's current status.

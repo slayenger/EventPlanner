@@ -1,7 +1,7 @@
 package com.eventplanner.services.api;
 
 import com.eventplanner.dtos.EventParticipantsDTO;
-import com.eventplanner.dtos.ParticipantDTO;
+import com.eventplanner.dtos.ParticipantRequestDTO;
 import com.eventplanner.exceptions.EmptyListException;
 import com.eventplanner.exceptions.NotFoundException;
 import com.eventplanner.exceptions.participants.NotParticipantException;
@@ -18,7 +18,7 @@ public interface ParticipantsService {
     /**
      * Adds a participant to the specified event.
      *
-     * @param participantDTO The participant data transfer object containing event and user IDs.
+     * @param participantRequestDTO The participant data transfer object containing event and user IDs.
      * @throws UserIsParticipantException If the specified user is already a participant in the event.
      * @throws NotFoundException         If the specified event or user is not found.
      *
@@ -27,7 +27,7 @@ public interface ParticipantsService {
      *          If the specified event or user is not found, a NotFoundException is thrown.
      *          If the user is already a participant, a UserIsParticipantException is thrown.
      */
-    void addParticipantToEvent(ParticipantDTO participantDTO);
+    void addParticipantToEvent(UUID eventId, UUID userId);
 
     /**
      * Retrieves a paginated list of participants for the specified event.
@@ -49,14 +49,14 @@ public interface ParticipantsService {
     /**
      * Removes a participant from the specified event.
      *
-     * @param participantDTO The ParticipantDTO containing the event and user IDs.
+     * @param participantRequestDTO The ParticipantRequestDTO containing the event and user IDs.
      * @throws NotFoundException If the participant is not found in the specified event.
      *
      * @apiNote This method removes a participant from the specified event based on the provided
-     *          ParticipantDTO containing the event and user IDs. If the participant is not found,
+     *          ParticipantRequestDTO containing the event and user IDs. If the participant is not found,
      *          a NotFoundException is thrown. Otherwise, the participant is deleted from the event.
      */
-    void removeParticipantFromEvent(ParticipantDTO participantDTO);
+    void removeParticipantFromEvent(ParticipantRequestDTO participantRequestDTO, UUID authenticatedUserId);
 
     /**
      * Checks if a user is a participant in a particular event.
@@ -68,21 +68,9 @@ public interface ParticipantsService {
     Boolean isUserParticipant(UUID eventId, UUID userId);
 
     /**
-     * Removes all participants from the specified event.
-     *
-     * @param eventId The ID of the event from which participants will be removed.
-     * @throws NotFoundException If the specified event is not found.
-     *
-     * @apiNote This method removes all participants from the specified event. If the event is not found,
-     *          a NotFoundException is thrown. Otherwise, all participants associated with the event are
-     *          deleted.
-     */
-    void removeAllParticipantsFromEvent(UUID eventId);
-
-    /**
      * Generates an invitation link for the specified participant in the event.
      *
-     * @param requestDTO        The ParticipantDTO containing event and user information.
+     * @param requestDTO        The ParticipantRequestDTO containing event and user information.
      * @param invitedByUserId   The ID of the user who is sending the invitation.
      * @return                  The generated invitation link.
      * @throws NotParticipantException If the user sending the invitation is not a participant in the specified event.
@@ -91,5 +79,5 @@ public interface ParticipantsService {
      *          the user sending the invitation is a participant in the event. If not, a NotParticipantException
      *          is thrown. Otherwise, the invitation link is generated using the HashingUtils class.
      */
-    String generateInvitationLink(ParticipantDTO requestDTO, UUID invitedByUserId);
+    public String generateInvitationLink(UUID eventId, UUID invitedByUserId);
 }

@@ -37,7 +37,7 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class PhotosServiceImpl implements PhotosService
 {
-    private static final String UPLOAD_DIR = "C:/Users/sinya/IdeaProjects/EventPlannerApp/src/main/resources/static/event_images";
+    private static final String UPLOAD_DIR = "C:/Users/sinya/IdeaProjects/EventPlanner/src/main/resources/static/event_images";
     private final EventPhotosRepository photosRepository;
     private final EventsRepository eventsRepository;
     private final PlatformTransactionManager transactionManager;

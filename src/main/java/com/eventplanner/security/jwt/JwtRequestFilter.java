@@ -59,6 +59,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             }
             catch (ExpiredJwtException e)
             {
+                //TODO если время жизни вышло, то - (?)
                 log.debug("Token expired");
             }
             catch (SignatureException e)

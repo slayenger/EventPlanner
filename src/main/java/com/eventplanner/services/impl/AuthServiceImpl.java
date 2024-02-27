@@ -35,6 +35,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenUtils jwtTokenUtil;
     private final AuthenticationManager authenticationManager;
     private final PlatformTransactionManager transactionManager;
+    private final EmailConfirmationServiceImpl confirmationService;
     private static final Logger LOGGER = LogManager.getLogger();
 
     @Override
@@ -61,7 +62,8 @@ public class AuthServiceImpl implements AuthService {
         }
     }
 
-    @Transactional(isolation = Isolation.READ_COMMITTED)
+    //TODO добавить свое исключение если ник занят
+    //@Transactional(isolation = Isolation.READ_COMMITTED)
     @Override
     public UserDTO registerUser(RegistrationUserDTO user)
     {
@@ -76,22 +78,23 @@ public class AuthServiceImpl implements AuthService {
             throw new BadCredentialsException("The user with the specified name already exists");
         }
 
-        TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
+        /*TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
         TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
-        LOGGER.info("Start transaction");
+        LOGGER.info("Start transaction");*/
 
         try
         {
             // Register the user
             Users users = usersService.registerUser(user);
+            //transactionManager.commit(transaction);
+            confirmationService.generateConfirmationCode(user);
 
-            transactionManager.commit(transaction);
             return new UserDTO(users.getEmail(), users.getUsername(),
                     users.getFirstname(), users.getLastname());
         }
         catch (Exception e)
         {
-            transactionManager.rollback(transaction);
+            //transactionManager.rollback(transaction);
             throw new RuntimeException("Error occurred while authenticate user");
         }
     }

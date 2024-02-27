@@ -1,11 +1,12 @@
 package com.eventplanner.services.impl;
 
 import com.eventplanner.dtos.EventParticipantsDTO;
-import com.eventplanner.dtos.ParticipantDTO;
+import com.eventplanner.dtos.ParticipantRequestDTO;
 import com.eventplanner.entities.EventParticipants;
 import com.eventplanner.entities.Events;
 import com.eventplanner.entities.Users;
 import com.eventplanner.exceptions.EmptyListException;
+import com.eventplanner.exceptions.InsufficientPermissionException;
 import com.eventplanner.exceptions.NotFoundException;
 import com.eventplanner.exceptions.participants.NotParticipantException;
 import com.eventplanner.exceptions.participants.UserIsParticipantException;
@@ -24,8 +25,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
-import org.springframework.transaction.annotation.Isolation;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
 
 import java.util.List;
@@ -44,35 +43,32 @@ public class ParticipantsServiceImpl implements ParticipantsService
     private final UsersRepository usersRepository;
     private final EventsRepository eventsRepository;
     private final PlatformTransactionManager transactionManager;
+    private final InvitationLinkService linkService;
     private static final Logger LOGGER = LogManager.getLogger();
 
+    private static final String DOMAIN = "localhost:8080/";
+
     @Override
-    public void addParticipantToEvent(ParticipantDTO participantDTO)
+    public void addParticipantToEvent(UUID eventId, UUID userId)
             throws UserIsParticipantException, NotFoundException
     {
         TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
         TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
         LOGGER.info("Start transaction");
 
-        UUID eventId = participantDTO.getEventId();
-        UUID userId = participantDTO.getUserId();
-        if (isUserParticipant(eventId, userId))
-        {
-            throw new UserIsParticipantException("A user with an id " + userId +
-                    " is already a participant of an event with an id " + eventId);
-        }
         Optional<Events> event = eventsRepository.findById(eventId);
         if (event.isEmpty())
         {
             throw new NotFoundException("Event with id " + eventId + " not found");
         }
 
-        Optional<Users> user = usersRepository.findById(userId);
-        if (user.isEmpty())
+        if (isUserParticipant(eventId, userId))
         {
-            transactionManager.rollback(transaction);
-            throw new NotFoundException("User with id " + userId + " not found");
+            throw new UserIsParticipantException("A user with an id " + userId +
+                    " is already a participant of an event with an id " + eventId);
         }
+
+        Optional<Users> user = usersRepository.findById(userId);
 
         EventParticipants participants = new EventParticipants();
         participants.setEvent(event.get());
@@ -100,9 +96,11 @@ public class ParticipantsServiceImpl implements ParticipantsService
             return participantsList
                     .map(participant ->
                             {
+                                Users user = participant.getUser();
                                 EventParticipantsDTO dto = new EventParticipantsDTO();
-                                dto.setParticipantId(participant.getUser().getUserId());
-                                dto.setParticipantName(participant.getUser().getUsername());
+                                dto.setParticipantId(user.getUserId());
+                                dto.setParticipantFirstname(user.getFirstname());
+                                dto.setParticipantLastname(user.getLastname());
                                 dto.setEventId(participant.getEvent().getEventId());
                                 return dto;
                             }
@@ -115,26 +113,29 @@ public class ParticipantsServiceImpl implements ParticipantsService
     }
 
     @Override
-    public void removeParticipantFromEvent(ParticipantDTO participantDTO) throws NotFoundException
+    public void removeParticipantFromEvent(ParticipantRequestDTO participantRequestDTO, UUID authenticatedUserId) throws NotFoundException, InsufficientPermissionException
     {
         TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
         TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
         LOGGER.info("Start transaction");
 
-        UUID eventId = participantDTO.getEventId();
-        UUID userId = participantDTO.getUserId();
+        UUID eventId = participantRequestDTO.getEventId();
+        UUID participantId = participantRequestDTO.getParticipantId();
         EventParticipants participant = participantsRepository.
-                findByEvent_EventIdAndUser_UserId(eventId,userId).orElse(null);
-        if (participant == null)
+                findByEvent_EventIdAndUser_UserId(eventId,participantId)
+                .orElseThrow(() ->
+                {
+                    throw new NotFoundException("Participant not found");
+                });
+        UUID userId = participant.getUser().getUserId();
+        Events event = eventsRepository.getReferenceById(eventId);
+        if (!(authenticatedUserId.equals(event.getOrganizer().getUserId())) && !(authenticatedUserId.equals(userId)))
         {
-            transactionManager.rollback(transaction);
-            throw new NotFoundException("Participant not found in event");
+            throw new InsufficientPermissionException("You don't have the rights to delete this participant");
         }
-        else
-        {
-            participantsRepository.delete(participant);
-            transactionManager.commit(transaction);
-        }
+
+        participantsRepository.delete(participant);
+        transactionManager.commit(transaction);
     }
 
     @Override
@@ -142,37 +143,15 @@ public class ParticipantsServiceImpl implements ParticipantsService
         return participantsRepository.existsByEvent_EventIdAndUser_UserId(eventId, userId);
     }
 
+    //TODO возвращается нихуя не ссылка XDDDDD
     @Override
-    public void removeAllParticipantsFromEvent(UUID eventId)
+    public String generateInvitationLink(UUID eventId, UUID invitedByUserId) throws NotParticipantException
     {
-        TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
-        TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
-        LOGGER.info("Start transaction");
-
-        if (!eventsRepository.existsById(eventId))
-        {
-            throw new NotFoundException("Event with id " + eventId + " not found");
-        }
-        else
-        {
-            List<EventParticipants> participants = participantsRepository
-                    .findAllByEvent_EventId(eventId);
-            participantsRepository.deleteAll(participants);
-            transactionManager.commit(transaction);
-        }
-    }
-
-    @Override
-    public String generateInvitationLink(ParticipantDTO requestDTO, UUID invitedByUserId) throws NotParticipantException
-    {
-        UUID eventId = requestDTO.getEventId();
-        UUID invitedUserId = requestDTO.getUserId();
-
         if (!isUserParticipant(eventId, invitedByUserId))
         {
             throw new NotParticipantException("A user with an id " + invitedByUserId
                     + " is not a participant of an event with an id " + eventId);
         }
-        return HashingUtils.generateInvitationLink(eventId,invitedUserId, invitedByUserId);
+        return eventId.toString() + "," + invitedByUserId.toString();
     }
 }

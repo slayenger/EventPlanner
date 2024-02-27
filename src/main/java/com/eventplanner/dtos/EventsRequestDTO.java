@@ -9,7 +9,7 @@ import java.util.Date;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class EventsDTO
+public class EventsRequestDTO
 {
     private String title;
 
@@ -17,5 +17,5 @@ public class EventsDTO
 
     private String location;
 
-    private Date dateTime;
+    private String dateTime;
 }

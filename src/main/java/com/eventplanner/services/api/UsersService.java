@@ -91,4 +91,6 @@ public interface UsersService {
      * @return An Optional containing the user object or an empty result if no user with the provided username is found.
      */
     Optional<Users> getUserByUsername(String username);
+
+    void changePassword (UUID userId, String currentPassword, String newPassword);
 }

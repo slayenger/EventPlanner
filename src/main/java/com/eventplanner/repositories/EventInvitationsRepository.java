@@ -13,7 +13,6 @@ public interface EventInvitationsRepository extends JpaRepository<EventInvitatio
 
     Page<EventInvitations> findAllByEvent_EventId(UUID eventId, Pageable pageable);
 
-    Page<EventInvitations> findAllByInvitedUser_UserId(UUID userId, Pageable pageable);
     void deleteAllByEvent_EventId(UUID eventId);
 
 }
