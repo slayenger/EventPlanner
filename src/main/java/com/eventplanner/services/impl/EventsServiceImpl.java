@@ -30,6 +30,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Implementation of the {@link EventsService} interface for managing events in the application.
@@ -42,6 +43,7 @@ public class EventsServiceImpl implements EventsService {
     private final EventsRepository eventsRepository;
     private final UsersRepository usersRepository;
     private final ParticipantsService participantsService;
+    private final EmailServiceImpl emailService;
     private final EventParticipantsRepository participantsRepository;
     private final EventInvitationsRepository invitationsRepository;
     private final EventPhotosRepository photosRepository;
@@ -138,6 +140,10 @@ public class EventsServiceImpl implements EventsService {
         {
             eventsMapper.update(updatedEvent, event);
             eventsRepository.save(event);
+            CompletableFuture<Void> asyncNotify = CompletableFuture.runAsync(
+                    () -> emailService.notifyAllParticipants(eventId, event.getTitle())
+            );
+            asyncNotify.join();
             transactionManager.commit(transaction);
         }
         else
