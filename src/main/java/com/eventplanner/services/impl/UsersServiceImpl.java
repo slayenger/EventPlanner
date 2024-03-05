@@ -6,7 +6,7 @@ import com.eventplanner.dtos.UserDTO;
 import com.eventplanner.entities.EmailConfirmation;
 import com.eventplanner.entities.EventParticipants;
 import com.eventplanner.entities.Events;
-import com.eventplanner.entities.Users;
+import com.eventplanner.entities.User;
 import com.eventplanner.exceptions.EmptyListException;
 import com.eventplanner.exceptions.NotFoundException;
 import com.eventplanner.exceptions.PasswordMismatchException;
@@ -46,7 +46,6 @@ import java.util.UUID;
  */
 @Service
 @RequiredArgsConstructor
-//TODO добавить метод смены пароля
 public class UsersServiceImpl implements UsersService, UserDetailsService {
 
     private final UsersRepository usersRepository;
@@ -60,9 +59,9 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
 
     //TODO должны возвращаться дто а не сущность
     @Override
-    public Page<Users> getAllUsers(int page, int size) throws EmptyListException {
+    public Page<User> getAllUsers(int page, int size) throws EmptyListException {
         Pageable pageable = PageRequest.of(page, size);
-        Page<Users> users = usersRepository.findAll(pageable);
+        Page<User> users = usersRepository.findAll(pageable);
 
         if (users.isEmpty()) {
             throw new EmptyListException("At the moment there is no users");
@@ -72,23 +71,20 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
     }
 
     @Override
-    public Users registerUser(RegistrationUserDTO registrationUserDTO) {
-        /*TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
-        TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
-        LOGGER.info("Start transaction");*/
-        Users user = new Users();
+    public User registerUser(RegistrationUserDTO registrationUserDTO) {
+        User user = new User();
         user.setUsername(registrationUserDTO.getUsername());
         user.setEmail(registrationUserDTO.getEmail());
         user.setPassword(passwordEncoder.encode(registrationUserDTO.getPassword()));
         usersRepository.save(user);
-        //transactionManager.commit(transaction);
+
         return user;
     }
 
     @Override
     public void changePassword (UUID userId, String currentPassword, String newPassword)
     {
-        Users user = usersRepository.getReferenceById(userId);
+        User user = usersRepository.getReferenceById(userId);
 
         if (!passwordEncoder.matches(currentPassword, user.getPassword()))
         {
@@ -104,7 +100,7 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
     @Override
     public UserDTO getUserById(UUID userId) throws NotFoundException {
         if (usersRepository.existsById(userId)) {
-            Users user = usersRepository.getReferenceById(userId);
+            User user = usersRepository.getReferenceById(userId);
             return usersMapper.toDTO(user);
         } else {
             throw new NotFoundException("User with id: " + userId + " not found");
@@ -115,7 +111,7 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
     public UserDTO getUserByEmail(String email) throws NotFoundException {
 
         if (usersRepository.existsByEmail(email)) {
-            Optional<Users> user = usersRepository.findByEmail(email);
+            Optional<User> user = usersRepository.findByEmail(email);
             return usersMapper.toDTO(user.get());
         } else {
             throw new NotFoundException("User with email: " + email + " not found");
@@ -126,7 +122,7 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
     public UserDTO updateUser(UUID userId, UserDTO updatedUser) throws NotFoundException {
         TransactionDefinition transactionDefinition = new DefaultTransactionDefinition();
         TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
-        Users user = usersRepository.getReferenceById(userId);
+        User user = usersRepository.getReferenceById(userId);
         usersRepository.save(usersMapper.update(updatedUser, user));
         transactionManager.commit(transaction);
         return usersMapper.toDTO(user);
@@ -166,14 +162,17 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
 
         EmailConfirmation emailConfirmation = emailConfirmationRepository.findByUser_UserId(userId);
         if (emailConfirmation != null)
-        emailConfirmationRepository.delete(emailConfirmation);
+        {
+            emailConfirmationRepository.delete(emailConfirmation);
+        }
+
 
         usersRepository.deleteById(userId);
         transactionManager.commit(transaction);
     }
 
     @Override
-    public Optional<Users> getUserByUsername(String username) {
+    public Optional<User> getUserByUsername(String username) {
         return usersRepository.findByUsername(username);
     }
 
@@ -187,7 +186,7 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
     @Override
     @Transactional
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        Users users = usersRepository.findByUsername(username).orElseThrow(
+        User user = usersRepository.findByUsername(username).orElseThrow(
                 () -> new UsernameNotFoundException(
                         String.format("User  '%s' not found", username)
                 )
@@ -195,9 +194,9 @@ public class UsersServiceImpl implements UsersService, UserDetailsService {
         );
 
         return new CustomUserDetailsDTO(
-                users.getUserId(),
-                users.getUsername(),
-                users.getPassword(),
+                user.getUserId(),
+                user.getUsername(),
+                user.getPassword(),
                 Collections.singleton(new SimpleGrantedAuthority("ROLE_USER"))
         );
     }

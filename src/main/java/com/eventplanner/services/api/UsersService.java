@@ -3,7 +3,7 @@ package com.eventplanner.services.api;
 import com.eventplanner.dtos.RegistrationUserDTO;
 import com.eventplanner.dtos.UserDTO;
 import com.eventplanner.entities.Events;
-import com.eventplanner.entities.Users;
+import com.eventplanner.entities.User;
 import com.eventplanner.exceptions.EmptyListException;
 import com.eventplanner.exceptions.NotFoundException;
 import org.springframework.data.domain.Page;
@@ -22,10 +22,10 @@ public interface UsersService {
      *
      * @param page The page number to retrieve (0-indexed).
      * @param size The number of users to include on each page.
-     * @return A {@link Page} of {@link Users} containing the users for the specified page.
+     * @return A {@link Page} of {@link User} containing the users for the specified page.
      * @throws EmptyListException if there are no users available.
      */
-    Page<Users> getAllUsers(int page, int size);
+    Page<User> getAllUsers(int page, int size);
 
     /**
      * Registers a new user.
@@ -33,7 +33,7 @@ public interface UsersService {
      * @param user The user registration data.
      * @return The registered user object.
      */
-    Users registerUser(RegistrationUserDTO user);
+    User registerUser(RegistrationUserDTO user);
 
     /**
      * Retrieves a user by their unique identifier.
@@ -90,7 +90,7 @@ public interface UsersService {
      * @param username The username of the user.
      * @return An Optional containing the user object or an empty result if no user with the provided username is found.
      */
-    Optional<Users> getUserByUsername(String username);
+    Optional<User> getUserByUsername(String username);
 
     void changePassword (UUID userId, String currentPassword, String newPassword);
 }

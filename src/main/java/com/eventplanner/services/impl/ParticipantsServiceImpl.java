@@ -2,19 +2,21 @@ package com.eventplanner.services.impl;
 
 import com.eventplanner.dtos.EventParticipantsDTO;
 import com.eventplanner.dtos.ParticipantRequestDTO;
+import com.eventplanner.entities.EmailConfirmation;
 import com.eventplanner.entities.EventParticipants;
 import com.eventplanner.entities.Events;
-import com.eventplanner.entities.Users;
+import com.eventplanner.entities.User;
+import com.eventplanner.exceptions.EmailNotConfirmedException;
 import com.eventplanner.exceptions.EmptyListException;
 import com.eventplanner.exceptions.InsufficientPermissionException;
 import com.eventplanner.exceptions.NotFoundException;
 import com.eventplanner.exceptions.participants.NotParticipantException;
 import com.eventplanner.exceptions.participants.UserIsParticipantException;
+import com.eventplanner.repositories.EmailConfirmationRepository;
 import com.eventplanner.repositories.EventParticipantsRepository;
 import com.eventplanner.repositories.EventsRepository;
 import com.eventplanner.repositories.UsersRepository;
 import com.eventplanner.services.api.ParticipantsService;
-import com.eventplanner.util.HashingUtils;
 import lombok.RequiredArgsConstructor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -27,7 +29,6 @@ import org.springframework.transaction.TransactionDefinition;
 import org.springframework.transaction.TransactionStatus;
 import org.springframework.transaction.support.DefaultTransactionDefinition;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -42,6 +43,7 @@ public class ParticipantsServiceImpl implements ParticipantsService
     private final EventParticipantsRepository participantsRepository;
     private final UsersRepository usersRepository;
     private final EventsRepository eventsRepository;
+    private final EmailConfirmationRepository emailConfirmationRepository;
     private final PlatformTransactionManager transactionManager;
     private final InvitationLinkService linkService;
     private static final Logger LOGGER = LogManager.getLogger();
@@ -68,7 +70,13 @@ public class ParticipantsServiceImpl implements ParticipantsService
                     " is already a participant of an event with an id " + eventId);
         }
 
-        Optional<Users> user = usersRepository.findById(userId);
+        EmailConfirmation emailConfirmation = emailConfirmationRepository.findByUser_UserId(userId);
+        if (!emailConfirmation.isEmailConfirmed())
+        {
+            throw new EmailNotConfirmedException("To create an event, you need to confirm your email address.");
+        }
+
+        Optional<User> user = usersRepository.findById(userId);
 
         EventParticipants participants = new EventParticipants();
         participants.setEvent(event.get());
@@ -96,7 +104,7 @@ public class ParticipantsServiceImpl implements ParticipantsService
             return participantsList
                     .map(participant ->
                             {
-                                Users user = participant.getUser();
+                                User user = participant.getUser();
                                 EventParticipantsDTO dto = new EventParticipantsDTO();
                                 dto.setParticipantId(user.getUserId());
                                 dto.setParticipantFirstname(user.getFirstname());

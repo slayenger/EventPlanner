@@ -4,7 +4,7 @@ import com.eventplanner.dtos.JwtRequestDTO;
 import com.eventplanner.dtos.JwtResponseDTO;
 import com.eventplanner.dtos.RegistrationUserDTO;
 import com.eventplanner.dtos.UserDTO;
-import com.eventplanner.entities.Users;
+import com.eventplanner.entities.User;
 import com.eventplanner.security.jwt.JwtTokenUtils;
 import com.eventplanner.services.api.AuthService;
 import lombok.RequiredArgsConstructor;
@@ -16,11 +16,6 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
-import org.springframework.transaction.TransactionDefinition;
-import org.springframework.transaction.TransactionStatus;
-import org.springframework.transaction.annotation.Isolation;
-import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.DefaultTransactionDefinition;
 import org.springframework.web.bind.annotation.RequestBody;
 
 /**
@@ -35,7 +30,7 @@ public class AuthServiceImpl implements AuthService {
     private final JwtTokenUtils jwtTokenUtil;
     private final AuthenticationManager authenticationManager;
     private final PlatformTransactionManager transactionManager;
-    private final EmailConfirmationServiceImpl confirmationService;
+    private final EmailServiceImpl confirmationService;
     private static final Logger LOGGER = LogManager.getLogger();
 
     @Override
@@ -71,7 +66,6 @@ public class AuthServiceImpl implements AuthService {
         if (!user.getPassword().equals(user.getConfirmPassword()))
         {
             throw new BadCredentialsException("Passwords don't matches");
-
         }
         if (usersService.getUserByUsername(user.getUsername()).isPresent())
         {
@@ -85,7 +79,7 @@ public class AuthServiceImpl implements AuthService {
         try
         {
             // Register the user
-            Users users = usersService.registerUser(user);
+            User users = usersService.registerUser(user);
             //transactionManager.commit(transaction);
             confirmationService.generateConfirmationCode(user);
 

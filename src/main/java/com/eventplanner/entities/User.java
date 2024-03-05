@@ -6,32 +6,24 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.Date;
 import java.util.UUID;
 
 @Entity
-@Table(name = "events")
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
+@Table(name = "users")
 @JsonIgnoreProperties({"hibernateLazyInitializer"})
-public class Events {
-
+public class User {
     @Id
     @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID eventId;
+    private UUID userId;
 
-    @Column(unique = true)
-    private String title;
+    private String username;
+    private String firstname;
+    private String lastname;
+    private String password;
 
-    private String description;
-
-    private String location;
-
-    @Temporal(TemporalType.TIMESTAMP)
-    private Date dateTime;
-
-    @ManyToOne
-    @JoinColumn(name = "organizer_id")
-    private User organizer;
+    //@Column(unique = true)
+    private String email;
 }

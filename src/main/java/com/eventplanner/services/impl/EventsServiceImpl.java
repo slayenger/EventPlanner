@@ -2,15 +2,11 @@ package com.eventplanner.services.impl;
 
 import com.eventplanner.dtos.EventsRequestDTO;
 import com.eventplanner.dtos.EventsResponseDTO;
-import com.eventplanner.dtos.ParticipantRequestDTO;
+import com.eventplanner.entities.EmailConfirmation;
 import com.eventplanner.entities.Events;
-import com.eventplanner.entities.Users;
-import com.eventplanner.exceptions.EmptyListException;
-import com.eventplanner.exceptions.InsufficientPermissionException;
-import com.eventplanner.exceptions.NotFoundException;
-import com.eventplanner.exceptions.ParseException;
+import com.eventplanner.entities.User;
+import com.eventplanner.exceptions.*;
 import com.eventplanner.mappers.EventsMapper;
-import com.eventplanner.mappers.ParticipantsMapper;
 import com.eventplanner.repositories.*;
 import com.eventplanner.services.api.EventsService;
 import com.eventplanner.services.api.ParticipantsService;
@@ -49,7 +45,8 @@ public class EventsServiceImpl implements EventsService {
     private final EventParticipantsRepository participantsRepository;
     private final EventInvitationsRepository invitationsRepository;
     private final EventPhotosRepository photosRepository;
-    private static final String UPLOAD_DIR = "C:/Users/sinya/IdeaProjects/EventPlannerApp/src/main/resources/static/event_images";
+    private final EmailConfirmationRepository emailConfirmationRepository;
+    private static final String UPLOAD_DIR = "C:/User/sinya/IdeaProjects/EventPlannerApp/src/main/resources/static/event_images";
     private final EventsMapper eventsMapper;
     private final PlatformTransactionManager transactionManager;
     private static final Logger LOGGER = LogManager.getLogger();
@@ -61,12 +58,13 @@ public class EventsServiceImpl implements EventsService {
         TransactionStatus transaction = transactionManager.getTransaction(transactionDefinition);
         LOGGER.info("Start transaction");
 
-        if (!usersRepository.existsById(organizerId))
+        EmailConfirmation emailConfirmation = emailConfirmationRepository.findByUser_UserId(organizerId);
+        if (!emailConfirmation.isEmailConfirmed())
         {
-            throw new NotFoundException("User with id " + organizerId + " not found");
+            throw new EmailNotConfirmedException("To create an event, you need to confirm your email address.");
         }
         Events newEvent = eventsMapper.toEvent(eventsRequestDTO);
-        Users organizer = usersRepository.getReferenceById(organizerId);
+        User organizer = usersRepository.getReferenceById(organizerId);
         newEvent.setOrganizer(organizer);
         eventsRepository.save(newEvent);
 

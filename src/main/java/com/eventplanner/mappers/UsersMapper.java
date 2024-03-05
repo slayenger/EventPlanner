@@ -1,13 +1,13 @@
 package com.eventplanner.mappers;
 
 import com.eventplanner.dtos.UserDTO;
-import com.eventplanner.entities.Users;
+import com.eventplanner.entities.User;
 import org.springframework.stereotype.Component;
 
 @Component
 public class UsersMapper {
 
-    public UserDTO toDTO(Users user)
+    public UserDTO toDTO(User user)
     {
         UserDTO userDTO = new UserDTO();
         userDTO.setUsername(user.getUsername());
@@ -17,7 +17,7 @@ public class UsersMapper {
         return userDTO;
     }
 
-    public Users update(UserDTO updatedUser, Users user)
+    public User update(UserDTO updatedUser, User user)
     {
         user.setEmail(updatedUser.getEmail());
         user.setUsername(updatedUser.getUsername());

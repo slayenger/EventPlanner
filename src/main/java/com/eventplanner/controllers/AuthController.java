@@ -5,11 +5,9 @@ import com.eventplanner.dtos.JwtRequestDTO;
 import com.eventplanner.dtos.RegistrationUserDTO;
 import com.eventplanner.dtos.UserDTO;
 import com.eventplanner.services.impl.AuthServiceImpl;
-import com.eventplanner.services.impl.MailService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -19,7 +17,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthServiceImpl authenticateUser;
-    private final MailService mailService;
 
     @PostMapping("/auth")
     public ResponseEntity<?> createAuthToken(@RequestBody JwtRequestDTO authRequest)

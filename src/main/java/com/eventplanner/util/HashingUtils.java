@@ -1,14 +1,8 @@
 package com.eventplanner.util;
 
-import java.security.Key;
 import java.security.SecureRandom;
 import java.util.*;
-import java.util.stream.Collectors;
-import javax.crypto.Cipher;
-import javax.crypto.spec.SecretKeySpec;
 
-import com.eventplanner.entities.Events;
-import com.eventplanner.entities.Users;
 import org.springframework.stereotype.Component;
 
 @Component

@@ -69,12 +69,12 @@ public class InvitationsServiceImpl implements InvitationsService {
                     + " is not participant in this event with id " + eventId);
         }
 
-            EventInvitations eventInvitations = setInvitationData(eventId, invitedByUserId, link);
+        EventInvitations eventInvitations = setInvitationData(eventId, invitedByUserId, link);
 
-            invitationsRepository.save(eventInvitations);
-            linkService.generateUniqueShortIdentifier(eventInvitations);
-            transactionManager.commit(transaction);
-            return eventInvitations;
+        invitationsRepository.save(eventInvitations);
+        linkService.generateUniqueShortIdentifier(eventInvitations);
+        transactionManager.commit(transaction);
+        return eventInvitations;
     }
 
     //TODO нужно сделать проверку, кто выполняет этот запрос (тот, кто аутентифицирован,может посмотреть только список своих приглашений)

@@ -26,7 +26,7 @@ public class EventInvitations {
 
     @ManyToOne
     @JoinColumn(name = "invited_by_user_id")
-    private Users invitedByUser;
+    private User invitedByUser;
 
     private String invitationLink;
 
